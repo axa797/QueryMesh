@@ -48,12 +48,16 @@ gcloud config list
 
 For **Vertex AI**, confirm the location your app passes (env or code), e.g. `GOOGLE_CLOUD_LOCATION=us-central1` per spec.
 
+## Git workflow
+
+- **Solo development:** commit directly to **`main`**. Do not create feature branches (including `cursor/*`) unless the user explicitly asks for one.
+
 ## How to work in this repo
 
 1. Check **PROGRESS.md** for the current phase; prefer completing the next unchecked §15 item unless fixing bugs.
 2. After meaningful progress, update **PROGRESS.md** (check boxes, **Current focus**, **Notes**, or checkpoint table).
-3. Prefer small PR-sized changes; match existing layout and tooling.
-4. When behavior or API is ambiguous, **cite `spec.md` section** in PR/issue notes rather than inventing requirements.
+3. Prefer small, reviewable commits on **`main`**; match existing layout and tooling.
+4. When behavior or API is ambiguous, **cite `spec.md` section** in commit messages or notes rather than inventing requirements.
 5. **CI:** none until there is a GitHub remote; add GitHub Actions when you push.
 
 ## Files agents should touch
