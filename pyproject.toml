@@ -10,7 +10,12 @@ requires-python = ">=3.12"
 license = "LicenseRef-Proprietary"
 
 dependencies = [
+  "alembic>=1.18.4",
+  "asyncpg>=0.31.0",
   "fastapi>=0.115",
+  "langgraph-checkpoint-postgres>=3.0.5",
+  "psycopg[binary]>=3.3",
+  "sqlalchemy[asyncio]>=2",
   "uvicorn[standard]>=0.32",
 ]
 
@@ -36,7 +41,19 @@ packages = [
 [tool.ruff]
 target-version = "py312"
 line-length = 100
-src = ["api", "agents", "graph", "ingestion", "memory", "observability", "tools", "evals", "scripts"]
+exclude = ["alembic/script.py.mako"]
+src = [
+  "alembic",
+  "api",
+  "agents",
+  "graph",
+  "ingestion",
+  "memory",
+  "observability",
+  "tools",
+  "evals",
+  "scripts",
+]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
@@ -44,3 +61,7 @@ select = ["E", "F", "I", "UP"]
 [tool.pytest.ini_options]
 testpaths = ["evals", "tests"]
 pythonpath = ["."]
+markers = [
+  "integration: requires DATABASE_URL and running Postgres",
+]
+addopts = ["-m", "not integration"]

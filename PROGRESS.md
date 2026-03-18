@@ -8,13 +8,13 @@ Update this file when starting or finishing a phase (short note under the item i
 
 ## Current focus
 
-- **Phase 3** — Postgres schema & migrations (next).
+- **Phase 4** — Auth middleware (next).
 
 ## Phase checklist (§15)
 
 - **1. Repo scaffold** — Done: Python 3.12, uv, [pyproject.toml](pyproject.toml), Ruff, package layout per spec, [.env.example](.env.example), [LICENSE](LICENSE), [tests/test_health.py](tests/test_health.py). Dependencies in `pyproject.toml` only (no `requirements.txt`).
 - **2. Infra primitives (local)** — Done: [infra/docker-compose.yml](infra/docker-compose.yml) — Qdrant, Redis, Postgres (`postgres` / `querymesh`); Langfuse vars in [.env.example](.env.example) empty until observability (§15.16).
-- **3. Postgres schema & migrations** — `users`, `api_keys`, `user_memory`, LangGraph checkpointer tables; constraints (`CHECK memory_type`), indexes.
+- **3. Postgres schema & migrations** — Done: Alembic [alembic/versions/001_initial_schema.py](alembic/versions/001_initial_schema.py) — `users`, `api_keys`, `user_memory`, LangGraph checkpoint tables + seeded `checkpoint_migrations`; `/health` probes Postgres when `DATABASE_URL` is set.
 - **4. Auth middleware** — Bearer → digest → `user_internal_id`; constant-time compare; CLI or script to mint keys + `users` row.
 - **5. Session layer** — Redis envelope + bind/mint `session_id`; 403 on mismatch; composite `thread_id` for LangGraph.
 - **6. Long-term memory reads** — Top-k loader + 256-token compaction + ordering; wire before orchestrator.
@@ -49,3 +49,4 @@ From spec: **(a)** auth + session tests green before agents; **(b)** RAG path pr
 *Use for decisions, blockers, or links to PRs. Newest first.*
 
 - Scaffold choices: Python **3.12**, **uv** + pyproject, **Ruff** only, **ADC only** (no SA JSON), **BIGQUERY_DATASET=querymesh**, local **Postgres** user/db **postgres** / **querymesh**, **Langfuse** env empty until §15.16, proprietary **LICENSE**, **no CI** until GitHub remote.
+- **Phase 3:** Alembic at repo root; LangGraph DDL aligned with `langgraph-checkpoint-postgres==3.0.5` `MIGRATIONS[0:11]`; non-CONCURRENT indexes for transactional migration.

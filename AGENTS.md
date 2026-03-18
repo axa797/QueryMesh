@@ -32,6 +32,8 @@ See **§5 Repository structure** in `spec.md`. Key dirs: `agents/`, `graph/`, `i
 
 - **Do not** install project dependencies into the developer’s user profile or system Python (no `pip install` / `uv sync` on the host unless the human explicitly opts in).
 - Run **services and tooling in Docker**: use [infra/docker-compose.yml](infra/docker-compose.yml) for local Qdrant, Redis, and Postgres; when a dev `Dockerfile` / compose `api` service exists, run the API, migrations, pytest, and linters **via** those images or `docker compose run --rm …` targets—not bare `python`/`uv` on the host.
+- **Database schema:** with Postgres up and `DATABASE_URL` set (see [.env.example](.env.example)), run `uv run alembic upgrade head`. Revision `001_initial_schema` creates app tables (`users`, `api_keys`, `user_memory`) and LangGraph checkpoint tables, with `checkpoint_migrations` seeded for `langgraph-checkpoint-postgres`.
+- **Integration tests:** `uv run pytest -m integration` (requires `DATABASE_URL` and running Postgres); default `pytest` excludes them.
 - Copy [.env.example](.env.example) → `.env`; do not commit `.env`.
 - **§13 Local development** in `spec.md` has command examples (adapt to containerized commands as targets are added).
 
