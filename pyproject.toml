@@ -15,6 +15,7 @@ dependencies = [
   "fastapi>=0.115",
   "langgraph-checkpoint-postgres>=3.0.5",
   "psycopg[binary]>=3.3",
+  "pydantic-settings>=2.14.0",
   "sqlalchemy[asyncio]>=2",
   "uvicorn[standard]>=0.32",
 ]

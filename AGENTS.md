@@ -33,6 +33,7 @@ See **§5 Repository structure** in `spec.md`. Key dirs: `agents/`, `graph/`, `i
 - **Do not** install project dependencies into the developer’s user profile or system Python (no `pip install` / `uv sync` on the host unless the human explicitly opts in).
 - Run **services and tooling in Docker**: use [infra/docker-compose.yml](infra/docker-compose.yml) for local Qdrant, Redis, and Postgres; when a dev `Dockerfile` / compose `api` service exists, run the API, migrations, pytest, and linters **via** those images or `docker compose run --rm …` targets—not bare `python`/`uv` on the host.
 - **Database schema:** with Postgres up and `DATABASE_URL` set (see [.env.example](.env.example)), run `uv run alembic upgrade head`. Revision `001_initial_schema` creates app tables (`users`, `api_keys`, `user_memory`) and LangGraph checkpoint tables, with `checkpoint_migrations` seeded for `langgraph-checkpoint-postgres`.
+- **Auth:** set `API_KEY_PEPPER` in `.env`. Mint a key: `PYTHONPATH=. uv run python scripts/mint_api_key.py` (prints raw key once; digest is **HMAC-SHA256(api_key, pepper)** per spec §8). `POST /query` requires `Authorization: Bearer <raw_key>`.
 - **Integration tests:** `uv run pytest -m integration` (requires `DATABASE_URL` and running Postgres); default `pytest` excludes them.
 - Copy [.env.example](.env.example) → `.env`; do not commit `.env`.
 - **§13 Local development** in `spec.md` has command examples (adapt to containerized commands as targets are added).
@@ -52,21 +53,24 @@ For **Vertex AI**, confirm the location your app passes (env or code), e.g. `GOO
 
 ## Git workflow
 
-- **Solo development:** commit directly to **`main`**. Do not create feature branches (including `cursor/*`) unless the user explicitly asks for one.
+- **Solo development:** commit directly to `**main`**. Do not create feature branches (including `cursor/*`) unless the user explicitly asks for one.
 
 ## How to work in this repo
 
 1. Check **PROGRESS.md** for the current phase; prefer completing the next unchecked §15 item unless fixing bugs.
 2. After meaningful progress, update **PROGRESS.md** (check boxes, **Current focus**, **Notes**, or checkpoint table).
-3. Prefer small, reviewable commits on **`main`**; match existing layout and tooling.
+3. Prefer small, reviewable commits on `**main`**; match existing layout and tooling.
 4. When behavior or API is ambiguous, **cite `spec.md` section** in commit messages or notes rather than inventing requirements.
 5. **CI:** none until there is a GitHub remote; add GitHub Actions when you push.
 
 ## Files agents should touch
 
-| Purpose | File |
-| --- | --- |
-| Requirements & architecture | `spec.md` |
-| Done / next | `PROGRESS.md` |
-| Env template | `.env.example` |
-| This context | `AGENTS.md` |
+
+| Purpose                     | File           |
+| --------------------------- | -------------- |
+| Requirements & architecture | `spec.md`      |
+| Done / next                 | `PROGRESS.md`  |
+| Env template                | `.env.example` |
+| This context                | `AGENTS.md`    |
+
+
