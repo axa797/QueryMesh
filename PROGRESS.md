@@ -8,7 +8,7 @@ Update this file when starting or finishing a phase (short note under the item i
 
 ## Current focus
 
-- **Phase 5** — Session layer (next).
+- **Phase 6** — Long-term memory reads (next).
 
 ## Phase checklist (§15)
 
@@ -16,7 +16,8 @@ Update this file when starting or finishing a phase (short note under the item i
 - **2. Infra primitives (local)** — Done: [infra/docker-compose.yml](infra/docker-compose.yml) — Qdrant, Redis, Postgres (`postgres` / `querymesh`); Langfuse vars in [.env.example](.env.example) empty until observability (§15.16).
 - **3. Postgres schema & migrations** — Done: Alembic [alembic/versions/001_initial_schema.py](alembic/versions/001_initial_schema.py) — `users`, `api_keys`, `user_memory`, LangGraph checkpoint tables + seeded `checkpoint_migrations`; `/health` probes Postgres when `DATABASE_URL` is set.
 - **4. Auth middleware** — Done: [api/deps.py](api/deps.py) Bearer → [api/auth.py](api/auth.py) digest + lookup; stable 401 JSON; [scripts/mint_api_key.py](scripts/mint_api_key.py); stub [POST /query](api/routes/query.py).
-- **5. Session layer** — Redis envelope + bind/mint `session_id`; 403 on mismatch; composite `thread_id` for LangGraph.
+- **5. Session layer** — Done: [memory/session_envelope.py](memory/session_envelope.py) — Redis envelope (`querymesh:session:{uuid}`), 24h TTL, optional `session_id` on [QueryRequest](api/schemas/query.py); mint or validate + **403** `invalid_session`; `thread_id` = `{user_id}:{session_id}`; [memory/redis_client.py](memory/redis_client.py); `/health` pings Redis.
+- **6. Long-term memory reads** — Top-k loader + 256-token compaction + ordering; wire before orchestrator.
 - **5. Session layer** — Redis envelope + bind/mint `session_id`; 403 on mismatch; composite `thread_id` for LangGraph.
 - **6. Long-term memory reads** — Top-k loader + 256-token compaction + ordering; wire before orchestrator.
 - **7. LangGraph skeleton** — Stateful graph + checkpointer; single-path echo → orchestrator stub.
@@ -52,3 +53,4 @@ From spec: **(a)** auth + session tests green before agents; **(b)** RAG path pr
 - Scaffold choices: Python **3.12**, **uv** + pyproject, **Ruff** only, **ADC only** (no SA JSON), **BIGQUERY_DATASET=querymesh**, local **Postgres** user/db **postgres** / **querymesh**, **Langfuse** env empty until §15.16, proprietary **LICENSE**, **no CI** until GitHub remote.
 - **Phase 3:** Alembic at repo root; LangGraph DDL aligned with `langgraph-checkpoint-postgres==3.0.5` `MIGRATIONS[0:11]`; non-CONCURRENT indexes for transactional migration.
 - **Phase 4:** Bearer auth, `pydantic-settings`, async pool + session scope, `scripts/mint_api_key.py`, `POST /query` stub; 401 JSON matches spec shape pattern.
+- **Phase 5:** Redis session envelope (24h TTL), `session_id` / `thread_id` for LangGraph, 403 stable JSON; settings require `REDIS_URL`.

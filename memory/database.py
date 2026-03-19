@@ -22,3 +22,16 @@ async def ping_postgres(url: str) -> bool:
         return False
     finally:
         await engine.dispose()
+
+
+async def ping_redis(url: str) -> bool:
+    import redis.asyncio as redis
+
+    client = redis.from_url(url, decode_responses=True)
+    try:
+        pong = await client.ping()
+        return pong is True
+    except Exception:
+        return False
+    finally:
+        await client.aclose()

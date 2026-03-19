@@ -20,9 +20,11 @@ ROOT = Path(__file__).resolve().parents[1]
 def test_query_accepts_minted_key() -> None:
     url = os.environ.get("DATABASE_URL")
     pepper = os.environ.get("API_KEY_PEPPER")
+    redis_url = os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/0")
     if not url or not pepper:
         pytest.skip("DATABASE_URL and API_KEY_PEPPER required")
 
+    os.environ["REDIS_URL"] = redis_url
     get_settings.cache_clear()
     reset_connection_pool()
 
@@ -33,6 +35,7 @@ def test_query_accepts_minted_key() -> None:
             **os.environ,
             "DATABASE_URL": url,
             "API_KEY_PEPPER": pepper,
+            "REDIS_URL": redis_url,
             "PYTHONPATH": str(ROOT),
         },
         capture_output=True,
@@ -43,13 +46,15 @@ def test_query_accepts_minted_key() -> None:
 
     from api.main import app
 
-    client = TestClient(app)
-    res = client.post(
-        "/query",
-        json={"query": "hello"},
-        headers={"Authorization": f"Bearer {key}"},
-    )
+    with TestClient(app) as client:
+        res = client.post(
+            "/query",
+            json={"query": "hello"},
+            headers={"Authorization": f"Bearer {key}"},
+        )
     assert res.status_code == 200
     data = res.json()
     assert "response" in data
     assert "trace_id" in data
+    assert "session_id" in data
+    assert data["session_id"] != "stub"

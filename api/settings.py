@@ -16,6 +16,7 @@ class Settings(BaseSettings):
 
     database_url: str
     api_key_pepper: str
+    redis_url: str
 
 
 @lru_cache

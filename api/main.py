@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 from fastapi.exception_handlers import http_exception_handler
 from fastapi.responses import JSONResponse
-from memory.database import database_url, ping_postgres
+from memory.database import database_url, ping_postgres, ping_redis
+from memory.redis_client import close_redis
 from memory.session import dispose_engine
 
 from api.routes import query as query_routes
@@ -19,6 +21,7 @@ async def lifespan(_app: FastAPI):
         yield
     finally:
         await dispose_engine()
+        await close_redis()
 
 
 app = FastAPI(title="querymesh", version="0.1.0", lifespan=lifespan)
@@ -40,11 +43,13 @@ async def health() -> dict:
     """Liveness + dependency status (spec §8 API)."""
     db_url = database_url()
     pg_ok = await ping_postgres(db_url) if db_url else False
+    redis_url = os.environ.get("REDIS_URL")
+    redis_ok = await ping_redis(redis_url) if redis_url else False
     return {
         "status": "ok",
         "services": {
             "qdrant": False,
-            "redis": False,
+            "redis": redis_ok,
             "postgres": pg_ok,
         },
     }
