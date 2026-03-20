@@ -30,8 +30,13 @@ def fixed_user_id() -> uuid.UUID:
 
 
 @pytest.fixture
-def client_with_session_deps(fixed_user_id: uuid.UUID):
+def client_with_session_deps(fixed_user_id: uuid.UUID, monkeypatch: pytest.MonkeyPatch):
     fake_redis = DictRedis()
+
+    async def fake_load_top_k(*_args, **_kwargs):
+        return []
+
+    monkeypatch.setattr("api.routes.query.load_top_k_memories", fake_load_top_k)
 
     async def user_override() -> uuid.UUID:
         return fixed_user_id
