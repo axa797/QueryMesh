@@ -6,6 +6,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from api.settings import get_settings
@@ -46,12 +47,13 @@ def test_query_accepts_minted_key() -> None:
 
     from api.main import app
 
-    with TestClient(app) as client:
-        res = client.post(
-            "/query",
-            json={"query": "hello"},
-            headers={"Authorization": f"Bearer {key}"},
-        )
+    with patch("graph.pipeline.retrieve_context", new=AsyncMock(return_value=[])):
+        with TestClient(app) as client:
+            res = client.post(
+                "/query",
+                json={"query": "hello"},
+                headers={"Authorization": f"Bearer {key}"},
+            )
     assert res.status_code == 200
     data = res.json()
     assert "response" in data

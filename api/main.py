@@ -8,6 +8,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.exception_handlers import http_exception_handler
 from fastapi.responses import JSONResponse
+from graph.pipeline import dispose_compiled_query_graph
+from memory.checkpointer import dispose_checkpoint_pool
 from memory.database import database_url, ping_postgres, ping_redis
 from memory.redis_client import close_redis
 from memory.session import dispose_engine
@@ -20,6 +22,8 @@ async def lifespan(_app: FastAPI):
     try:
         yield
     finally:
+        await dispose_compiled_query_graph()
+        await dispose_checkpoint_pool()
         await dispose_engine()
         await close_redis()
 

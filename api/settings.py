@@ -18,6 +18,19 @@ class Settings(BaseSettings):
     api_key_pepper: str
     redis_url: str
 
+    # GCP / RAG (§9, §15.8)
+    google_cloud_project: str | None = None
+    google_cloud_location: str = "us-central1"
+    vertex_embedding_model: str = "text-embedding-004"
+
+    # Qdrant (local: docker-compose)
+    qdrant_url: str = "http://localhost:6333"
+    qdrant_api_key: str | None = None
+    qdrant_collection: str = "gcp_docs"
+
+    # §4 feature flag — prod on, local off
+    rag_vertex_rerank: bool = False
+
 
 @lru_cache
 def get_settings() -> Settings:

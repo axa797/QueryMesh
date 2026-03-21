@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from unittest.mock import AsyncMock
 
 import pytest
 from api.deps import get_current_user_internal_id
@@ -36,7 +37,15 @@ def client_with_session_deps(fixed_user_id: uuid.UUID, monkeypatch: pytest.Monke
     async def fake_load_top_k(*_args, **_kwargs):
         return []
 
+    async def fake_compiled_graph():
+        from graph.pipeline import build_query_graph
+        from langgraph.checkpoint.memory import MemorySaver
+
+        return build_query_graph().compile(checkpointer=MemorySaver())
+
     monkeypatch.setattr("api.routes.query.load_top_k_memories", fake_load_top_k)
+    monkeypatch.setattr("api.routes.query.get_compiled_query_graph", fake_compiled_graph)
+    monkeypatch.setattr("graph.pipeline.retrieve_context", AsyncMock(return_value=[]))
 
     async def user_override() -> uuid.UUID:
         return fixed_user_id

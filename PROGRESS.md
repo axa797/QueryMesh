@@ -8,7 +8,7 @@ Update this file when starting or finishing a phase (short note under the item i
 
 ## Current focus
 
-- **Phase 7** — LangGraph skeleton (next).
+- **Phase 9** — Orchestrator (structured routing + RAG fallback).
 
 ## Phase checklist (§15)
 
@@ -18,11 +18,8 @@ Update this file when starting or finishing a phase (short note under the item i
 - **4. Auth middleware** — Done: [api/deps.py](api/deps.py) Bearer → [api/auth.py](api/auth.py) digest + lookup; stable 401 JSON; [scripts/mint_api_key.py](scripts/mint_api_key.py); stub [POST /query](api/routes/query.py).
 - **5. Session layer** — Done: [memory/session_envelope.py](memory/session_envelope.py) — Redis envelope (`querymesh:session:{uuid}`), 24h TTL, optional `session_id` on [QueryRequest](api/schemas/query.py); mint or validate + **403** `invalid_session`; `thread_id` = `{user_id}:{session_id}`; [memory/redis_client.py](memory/redis_client.py); `/health` pings Redis.
 - **6. Long-term memory reads** — Done: [memory/longterm.py](memory/longterm.py) — `load_top_k_memories` + `compact_to_token_budget` (§7: k=5, ordering, 256-token cap); wired into [POST /query](api/routes/query.py) before orchestrator stub (`has_memory` in response).
-- **7. LangGraph skeleton** — Stateful graph + checkpointer; single-path echo → orchestrator stub.
-- **5. Session layer** — Redis envelope + bind/mint `session_id`; 403 on mismatch; composite `thread_id` for LangGraph.
-- **6. Long-term memory reads** — Top-k loader + 256-token compaction + ordering; wire before orchestrator.
-- **7. LangGraph skeleton** — Stateful graph + checkpointer; single-path echo → orchestrator stub.
-- **8. RAG vertical slice** — Ingestion CLI (`loader`/`chunker`/`indexer`), Qdrant collection, retrieval node; rerank flag off locally by default.
+- **7. LangGraph skeleton** — Done: [graph/pipeline.py](graph/pipeline.py) — **echo → orchestrator_stub → retrieve** (RAG slice adds `retrieve`); [memory/checkpointer.py](memory/checkpointer.py) Psycopg pool + `AsyncPostgresSaver`; `config.configurable.thread_id` = Redis/LangGraph id; `/query` returns graph outputs including `retrieval_hits`.
+- **8. RAG vertical slice** — Done: [ingestion/loader.py](ingestion/loader.py) / [ingestion/chunker.py](ingestion/chunker.py) / [ingestion/indexer.py](ingestion/indexer.py) (+ [ingestion/embeddings.py](ingestion/embeddings.py)); Qdrant collection `gcp_docs` via settings; [tools/retrieval_tool.py](tools/retrieval_tool.py) + **`retrieve`** node after orchestrator stub; `RAG_VERTEX_RERANK` wired (log-only until Vertex rerank lands).
 - **9. Orchestrator** — Structured routing JSON + retry → RAG fallback; fan-out ≤ 3; temperatures per spec.
 - **10. Synthesizer** — Render structured RAG JSON; `save_memory` tool **only** here.
 - **11. Analytics vertical slice** — `scripts/bootstrap_bq.py` + README; IAM least privilege; analytics agent + guarded SQL.
@@ -56,3 +53,5 @@ From spec: **(a)** auth + session tests green before agents; **(b)** RAG path pr
 - **Phase 4:** Bearer auth, `pydantic-settings`, async pool + session scope, `scripts/mint_api_key.py`, `POST /query` stub; 401 JSON matches spec shape pattern.
 - **Phase 5:** Redis session envelope (24h TTL), `session_id` / `thread_id` for LangGraph, 403 stable JSON; settings require `REDIS_URL`.
 - **Phase 6:** [memory/longterm.py](memory/longterm.py) Postgres read policy + compaction; `/query` loads memory before stub orchestrator; session unit tests monkeypatch DB load to avoid TestClient/asyncpg loop issues.
+- **Phase 7:** [graph/pipeline.py](graph/pipeline.py) + [memory/checkpointer.py](memory/checkpointer.py) — LangGraph `StateGraph`, Postgres `AsyncPostgresSaver`, `thread_id` threading; unit tests use `MemorySaver`.
+- **Phase 8:** Ingestion (`ingestion/*`), Vertex `text-embedding-004`, Qdrant upsert CLI ([ingestion/indexer.py](ingestion/indexer.py)), [tools/retrieval_tool.py](tools/retrieval_tool.py), graph **`retrieve`** node; `retrieval_hits` on `/query`; `RAG_VERTEX_RERANK` log-only stub.
