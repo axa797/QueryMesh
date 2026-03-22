@@ -17,7 +17,7 @@ from ingestion.loader import load_source_dir
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
-_NAMESPACE_UUID = uuid.UUID("0ad9c5f2-4d5e-5b1b-9f0e-querymesh-ingest")
+_NAMESPACE_UUID = uuid.uuid5(uuid.NAMESPACE_URL, "querymesh/ingest/point-id")
 
 
 def _point_id(chunk: TextChunk, ordinal: int) -> str:

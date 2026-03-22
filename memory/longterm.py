@@ -22,6 +22,7 @@ class MemoryRow:
 
 # preference → context → history (ordering in SQL).
 
+
 async def load_top_k_memories(
     session: AsyncSession,
     user_internal_id: UUID,
