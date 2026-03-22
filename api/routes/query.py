@@ -44,7 +44,7 @@ async def post_query(
             "status": "stub",
             "has_memory": bool(memory_compact.strip()),
             "echo_reply": graph_out.get("echo_reply"),
-            "orchestrator_stub": graph_out.get("orchestrator_stub"),
+            "orchestrator": graph_out.get("orchestrator"),
             "retrieval_hits": graph_out.get("retrieval_hits") or [],
         },
         "trace_id": "stub",

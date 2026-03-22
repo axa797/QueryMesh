@@ -1,10 +1,11 @@
-"""LangGraph query pipeline: echo → orchestrator stub → retrieve (Phase 7–8)."""
+"""LangGraph query pipeline: echo → orchestrator → retrieve (Phase 7–9)."""
 
 from __future__ import annotations
 
 import asyncio
 from typing import Any
 
+from agents.orchestrator import run_orchestrator
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.graph import END, START, StateGraph
 from memory.checkpointer import get_checkpoint_pool
@@ -21,7 +22,7 @@ class QueryGraphState(TypedDict, total=False):
     query: str
     memory_compact: str
     echo_reply: str
-    orchestrator_stub: dict[str, Any]
+    orchestrator: dict[str, Any]
     retrieval_hits: list[dict[str, Any]]
 
 
@@ -30,20 +31,16 @@ def echo_node(state: QueryGraphState) -> dict[str, str]:
     return {"echo_reply": f"echo:{q[:2000]}"}
 
 
-def orchestrator_stub_node(state: QueryGraphState) -> dict[str, dict[str, Any]]:
-    """Placeholder routing object until real orchestrator (spec §6.1)."""
-    return {
-        "orchestrator_stub": {
-            "intents": ["retrieval"],
-            "parallel": False,
-            "rewritten_queries": {"retrieval": (state.get("query") or "").strip()},
-            "stub": True,
-        },
-    }
+async def orchestrator_node(state: QueryGraphState) -> dict[str, dict[str, Any]]:
+    plan = await run_orchestrator(
+        state.get("query") or "",
+        state.get("memory_compact") or "",
+    )
+    return {"orchestrator": plan}
 
 
 async def retrieve_node(state: QueryGraphState) -> dict[str, list[dict[str, Any]]]:
-    stub = state.get("orchestrator_stub") or {}
+    stub = state.get("orchestrator") or {}
     rq = stub.get("rewritten_queries") if isinstance(stub, dict) else None
     rewritten = ""
     if isinstance(rq, dict):
@@ -56,11 +53,11 @@ async def retrieve_node(state: QueryGraphState) -> dict[str, list[dict[str, Any]
 def build_query_graph() -> StateGraph:
     g: StateGraph = StateGraph(QueryGraphState)
     g.add_node("echo", echo_node)
-    g.add_node("orchestrator_stub", orchestrator_stub_node)
+    g.add_node("orchestrator", orchestrator_node)
     g.add_node("retrieve", retrieve_node)
     g.add_edge(START, "echo")
-    g.add_edge("echo", "orchestrator_stub")
-    g.add_edge("orchestrator_stub", "retrieve")
+    g.add_edge("echo", "orchestrator")
+    g.add_edge("orchestrator", "retrieve")
     g.add_edge("retrieve", END)
     return g
 

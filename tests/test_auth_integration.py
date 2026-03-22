@@ -47,13 +47,22 @@ def test_query_accepts_minted_key() -> None:
 
     from api.main import app
 
+    orch_mock = AsyncMock(
+        return_value={
+            "intents": ["retrieval"],
+            "rewritten_queries": {"retrieval": "hello"},
+            "parallel": False,
+            "source": "test",
+        }
+    )
     with patch("graph.pipeline.retrieve_context", new=AsyncMock(return_value=[])):
-        with TestClient(app) as client:
-            res = client.post(
-                "/query",
-                json={"query": "hello"},
-                headers={"Authorization": f"Bearer {key}"},
-            )
+        with patch("graph.pipeline.run_orchestrator", new=orch_mock):
+            with TestClient(app) as client:
+                res = client.post(
+                    "/query",
+                    json={"query": "hello"},
+                    headers={"Authorization": f"Bearer {key}"},
+                )
     assert res.status_code == 200
     data = res.json()
     assert "response" in data
