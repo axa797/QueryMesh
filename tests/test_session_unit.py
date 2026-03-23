@@ -56,6 +56,25 @@ def client_with_session_deps(fixed_user_id: uuid.UUID, monkeypatch: pytest.Monke
     monkeypatch.setattr("graph.pipeline.retrieve_context", AsyncMock(return_value=[]))
     monkeypatch.setattr("graph.pipeline.run_orchestrator", fake_route)
 
+    async def fake_rag(_q: str, _hits: list) -> dict:
+        return {
+            "answer": "stub",
+            "citations": [],
+            "confidence": "low",
+            "source": "test",
+        }
+
+    async def fake_synth(*_a, **_kw) -> dict:
+        return {
+            "message": "stub reply",
+            "memory_saved": False,
+            "memory_id": None,
+            "source": "test",
+        }
+
+    monkeypatch.setattr("graph.pipeline.run_rag_structured", fake_rag)
+    monkeypatch.setattr("graph.pipeline.run_synthesizer", fake_synth)
+
     async def user_override() -> uuid.UUID:
         return fixed_user_id
 

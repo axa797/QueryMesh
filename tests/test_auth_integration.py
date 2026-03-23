@@ -57,12 +57,34 @@ def test_query_accepts_minted_key() -> None:
     )
     with patch("graph.pipeline.retrieve_context", new=AsyncMock(return_value=[])):
         with patch("graph.pipeline.run_orchestrator", new=orch_mock):
-            with TestClient(app) as client:
-                res = client.post(
-                    "/query",
-                    json={"query": "hello"},
-                    headers={"Authorization": f"Bearer {key}"},
-                )
+            with patch(
+                "graph.pipeline.run_rag_structured",
+                new=AsyncMock(
+                    return_value={
+                        "answer": "a",
+                        "citations": [],
+                        "confidence": "low",
+                        "source": "test",
+                    }
+                ),
+            ):
+                with patch(
+                    "graph.pipeline.run_synthesizer",
+                    new=AsyncMock(
+                        return_value={
+                            "message": "m",
+                            "memory_saved": False,
+                            "memory_id": None,
+                            "source": "test",
+                        }
+                    ),
+                ):
+                    with TestClient(app) as client:
+                        res = client.post(
+                            "/query",
+                            json={"query": "hello"},
+                            headers={"Authorization": f"Bearer {key}"},
+                        )
     assert res.status_code == 200
     data = res.json()
     assert "response" in data

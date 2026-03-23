@@ -34,18 +34,24 @@ async def post_query(
 
     graph = await get_compiled_query_graph()
     graph_out = await graph.ainvoke(
-        {"query": body.query, "memory_compact": memory_compact},
+        {
+            "user_id": str(user_id),
+            "query": body.query,
+            "memory_compact": memory_compact,
+        },
         config={"configurable": {"thread_id": thread_id}},
     )
 
     latency_ms = max(0, int((time.monotonic() - t0) * 1000))
     return {
         "response": {
-            "status": "stub",
+            "status": "ok",
             "has_memory": bool(memory_compact.strip()),
             "echo_reply": graph_out.get("echo_reply"),
             "orchestrator": graph_out.get("orchestrator"),
             "retrieval_hits": graph_out.get("retrieval_hits") or [],
+            "rag_structured": graph_out.get("rag_structured"),
+            "synthesis": graph_out.get("synthesis"),
         },
         "trace_id": "stub",
         "latency_ms": latency_ms,

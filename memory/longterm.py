@@ -75,3 +75,31 @@ def compact_to_token_budget(
     if len(words) <= max_tokens:
         return block
     return " ".join(words[:max_tokens])
+
+
+async def insert_user_memory(
+    session: AsyncSession,
+    user_internal_id: UUID,
+    *,
+    memory_type: str,
+    content: str,
+) -> UUID:
+    """Insert a long-term memory row (spec §7 tool path; ``memory_type`` constrained)."""
+    mt = memory_type.strip()
+    if mt not in ("preference", "context", "history"):
+        raise ValueError(f"invalid memory_type: {memory_type!r}")
+    body = (content or "").strip()
+    if not body:
+        raise ValueError("content must be non-empty")
+    res = await session.execute(
+        text(
+            """
+            INSERT INTO user_memory (user_id, memory_type, content, last_accessed)
+            VALUES (:uid, :mt, :body, NOW())
+            RETURNING id
+            """
+        ),
+        {"uid": user_internal_id, "mt": mt, "body": body},
+    )
+    pk = res.scalar_one()
+    return pk

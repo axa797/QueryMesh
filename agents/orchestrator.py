@@ -5,13 +5,14 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from functools import lru_cache
 from typing import Any, Self
 
 from api.settings import get_settings
-from google import genai
 from google.genai import types
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from agents.jsonutil import strip_markdown_fences
+from agents.vertex import vertex_client
 
 log = logging.getLogger(__name__)
 
@@ -78,18 +79,6 @@ class OrchestratorJSON(BaseModel):
         return self
 
 
-def _strip_markdown_fences(raw: str) -> str:
-    s = raw.strip()
-    if not s.startswith("```"):
-        return s
-    lines = s.splitlines()
-    if lines and lines[0].startswith("```"):
-        lines = lines[1:]
-    if lines and lines[-1].strip() == "```":
-        lines = lines[:-1]
-    return "\n".join(lines).strip()
-
-
 def _normalize_payload(data: dict[str, Any], original_query: str, *, source: str) -> dict[str, Any]:
     parsed = OrchestratorJSON.model_validate(data)
     intents = list(parsed.intents)
@@ -97,8 +86,8 @@ def _normalize_payload(data: dict[str, Any], original_query: str, *, source: str
     rq: dict[str, str] = {}
     for intent in intents:
         raw_rq = parsed.rewritten_queries.get(intent)
-        text = (raw_rq or "").strip() if isinstance(raw_rq, str) else ""
-        rq[intent] = text if text else q
+        rtext = (raw_rq or "").strip() if isinstance(raw_rq, str) else ""
+        rq[intent] = rtext if rtext else q
     return {
         "intents": intents,
         "rewritten_queries": rq,
@@ -118,16 +107,11 @@ def rag_fallback_route(query: str, *, source: str) -> dict[str, Any]:
 
 
 def parse_route_json(text: str, original_query: str, *, source: str) -> dict[str, Any]:
-    cleaned = _strip_markdown_fences(text)
+    cleaned = strip_markdown_fences(text)
     data = json.loads(cleaned)
     if not isinstance(data, dict):
         raise TypeError("JSON root must be an object")
     return _normalize_payload(data, original_query, source=source)
-
-
-@lru_cache(maxsize=8)
-def _genai_client(project: str, location: str) -> genai.Client:
-    return genai.Client(vertexai=True, project=project, location=location)
 
 
 def _generate_route_text(
@@ -138,7 +122,7 @@ def _generate_route_text(
     project: str,
     location: str,
 ) -> str:
-    client = _genai_client(project, location)
+    client = vertex_client(project, location)
     cfg = types.GenerateContentConfig(
         temperature=0,
         system_instruction=ORCHESTRATOR_SYSTEM,

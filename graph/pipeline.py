@@ -1,11 +1,14 @@
-"""LangGraph query pipeline: echo → orchestrator → retrieve (Phase 7–9)."""
+"""LangGraph query pipeline: echo → orchestrator → retrieve → RAG → synthesizer (Phase 7–10)."""
 
 from __future__ import annotations
 
 import asyncio
 from typing import Any
+from uuid import UUID
 
 from agents.orchestrator import run_orchestrator
+from agents.rag_agent import run_rag_structured
+from agents.synthesizer import run_synthesizer
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.graph import END, START, StateGraph
 from memory.checkpointer import get_checkpoint_pool
@@ -19,11 +22,14 @@ _compiled_graph: Any = None
 class QueryGraphState(TypedDict, total=False):
     """Graph state: user query + long-term memory block + node outputs."""
 
+    user_id: str
     query: str
     memory_compact: str
     echo_reply: str
     orchestrator: dict[str, Any]
     retrieval_hits: list[dict[str, Any]]
+    rag_structured: dict[str, Any]
+    synthesis: dict[str, Any]
 
 
 def echo_node(state: QueryGraphState) -> dict[str, str]:
@@ -50,15 +56,41 @@ async def retrieve_node(state: QueryGraphState) -> dict[str, list[dict[str, Any]
     return {"retrieval_hits": hits}
 
 
+async def rag_structured_node(state: QueryGraphState) -> dict[str, dict[str, Any]]:
+    rag = await run_rag_structured(
+        state.get("query") or "",
+        state.get("retrieval_hits") or [],
+    )
+    return {"rag_structured": rag}
+
+
+async def synthesizer_node(state: QueryGraphState) -> dict[str, dict[str, Any]]:
+    uid_s = (state.get("user_id") or "").strip()
+    if not uid_s:
+        raise ValueError("query graph state requires user_id")
+    syn = await run_synthesizer(
+        state.get("query") or "",
+        state.get("memory_compact") or "",
+        state.get("orchestrator") or {},
+        state.get("rag_structured") or {},
+        UUID(uid_s),
+    )
+    return {"synthesis": syn}
+
+
 def build_query_graph() -> StateGraph:
     g: StateGraph = StateGraph(QueryGraphState)
     g.add_node("echo", echo_node)
     g.add_node("orchestrator", orchestrator_node)
     g.add_node("retrieve", retrieve_node)
+    g.add_node("rag_structured", rag_structured_node)
+    g.add_node("synthesizer", synthesizer_node)
     g.add_edge(START, "echo")
     g.add_edge("echo", "orchestrator")
     g.add_edge("orchestrator", "retrieve")
-    g.add_edge("retrieve", END)
+    g.add_edge("retrieve", "rag_structured")
+    g.add_edge("rag_structured", "synthesizer")
+    g.add_edge("synthesizer", END)
     return g
 
 
