@@ -32,6 +32,11 @@ class Settings(BaseSettings):
     # §4 feature flag — prod on, local off
     rag_vertex_rerank: bool = False
 
+    # BigQuery (§6.4; seed with scripts/bootstrap_bq.py)
+    bigquery_project_id: str | None = None
+    bigquery_dataset: str = "querymesh"
+    bigquery_location: str = "US"
+
 
 @lru_cache
 def get_settings() -> Settings:

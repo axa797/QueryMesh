@@ -23,6 +23,8 @@ SYNTH_SYSTEM = (
     "You are a response synthesizer. You receive structured outputs from specialist agents. "
     "Combine them into a single coherent response for the end user.\n"
     "Preserve all citations from structured RAG JSON in your message (document + section). "
+    "When Analytics JSON includes query results, summarize them accurately with row counts "
+    "and key fields. "
     "Do not add facts not present in the agent outputs.\n"
     "Use short sections if helpful.\n"
     "Return JSON with keys: message (string), save_memory (null or object with memory_type "
@@ -62,6 +64,7 @@ def _response_text(resp: Any) -> str:
 def _offline_synthesis(
     query: str,
     rag: dict[str, Any],
+    analytics: dict[str, Any] | None,
     *,
     memory_saved: bool,
 ) -> dict[str, Any]:
@@ -70,7 +73,12 @@ def _offline_synthesis(
     cite_lines = "\n".join(
         f"- {c.get('document')} / {c.get('section')}" for c in cites if isinstance(c, dict)
     )
-    msg = f"{ans}\n\nSources:\n{cite_lines}" if cite_lines else ans
+    base = f"{ans}\n\nSources:\n{cite_lines}" if cite_lines else ans
+    parts = [base] if base.strip() else []
+    if analytics and analytics.get("source") not in (None, "skipped"):
+        ajson = json.dumps(analytics, indent=2)[:6000]
+        parts.append(f"Analytics:\n{ajson}")
+    msg = "\n\n".join(p for p in parts if p.strip())
     return {
         "message": msg or f"(No synthesis) Query: {query[:500]}",
         "memory_saved": memory_saved,
@@ -84,15 +92,18 @@ def _synth_payload(
     memory_compact: str,
     orchestrator: dict[str, Any],
     rag: dict[str, Any],
+    analytics: dict[str, Any] | None,
 ) -> str:
     mem = (memory_compact or "").strip()[:2000]
     orch = json.dumps(orchestrator, indent=2)[:4000]
     ragj = json.dumps(rag, indent=2)[:8000]
+    aj = json.dumps(analytics or {}, indent=2)[:8000]
     return (
         f"User query:\n{query.strip()}\n\n"
         f"Long-term memory summary (context only):\n{mem or '(none)'}\n\n"
         f"Orchestrator plan:\n{orch}\n\n"
-        f"Structured RAG JSON:\n{ragj}\n"
+        f"Structured RAG JSON:\n{ragj}\n\n"
+        f"Structured Analytics JSON:\n{aj}\n"
     )
 
 
@@ -121,18 +132,30 @@ async def run_synthesizer(
     memory_compact: str,
     orchestrator: dict[str, Any],
     rag_structured: dict[str, Any],
+    analytics_structured: dict[str, Any] | None,
     user_id: UUID,
 ) -> dict[str, Any]:
     """LLM synthesis + optional ``save_memory`` in one JSON response."""
     settings = get_settings()
     project = settings.google_cloud_project
-    user_blob = _synth_payload(query, memory_compact, orchestrator, rag_structured)
+    user_blob = _synth_payload(
+        query,
+        memory_compact,
+        orchestrator,
+        rag_structured,
+        analytics_structured,
+    )
 
     memory_saved = False
     memory_id: str | None = None
 
     if not project:
-        return _offline_synthesis(query, rag_structured, memory_saved=False)
+        return _offline_synthesis(
+            query,
+            rag_structured,
+            analytics_structured,
+            memory_saved=False,
+        )
 
     try:
         text = await asyncio.to_thread(
@@ -146,7 +169,12 @@ async def run_synthesizer(
         parsed = SynthesisModel.model_validate(data)
     except Exception:
         log.exception("Synthesizer LLM failed; using offline assembly")
-        return _offline_synthesis(query, rag_structured, memory_saved=False)
+        return _offline_synthesis(
+            query,
+            rag_structured,
+            analytics_structured,
+            memory_saved=False,
+        )
 
     if parsed.save_memory is not None:
         try:

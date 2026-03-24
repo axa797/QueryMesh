@@ -50,6 +50,7 @@ async def post_query(
             "echo_reply": graph_out.get("echo_reply"),
             "orchestrator": graph_out.get("orchestrator"),
             "retrieval_hits": graph_out.get("retrieval_hits") or [],
+            "analytics_structured": graph_out.get("analytics_structured"),
             "rag_structured": graph_out.get("rag_structured"),
             "synthesis": graph_out.get("synthesis"),
         },

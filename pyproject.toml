@@ -13,6 +13,7 @@ dependencies = [
   "alembic>=1.18.4",
   "asyncpg>=0.31.0",
   "fastapi>=0.115",
+  "google-cloud-bigquery>=3.41",
   "google-cloud-aiplatform>=1.75",
   "langgraph>=1.1.10",
   "langgraph-checkpoint-postgres>=3.0.5",

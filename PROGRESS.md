@@ -8,7 +8,7 @@ Update this file when starting or finishing a phase (short note under the item i
 
 ## Current focus
 
-- **Phase 11** — Analytics vertical slice (`scripts/bootstrap_bq.py`, analytics agent).
+- **Phase 12** — Code agent + E2B (`code_exec_tool`, Python template, caps).
 
 ## Phase checklist (§15)
 
@@ -22,7 +22,7 @@ Update this file when starting or finishing a phase (short note under the item i
 - **8. RAG vertical slice** — Done: [ingestion/loader.py](ingestion/loader.py) / [ingestion/chunker.py](ingestion/chunker.py) / [ingestion/indexer.py](ingestion/indexer.py) (+ [ingestion/embeddings.py](ingestion/embeddings.py)); Qdrant collection `gcp_docs` via settings; [tools/retrieval_tool.py](tools/retrieval_tool.py) + **`retrieve`** after orchestrator; `RAG_VERTEX_RERANK` wired (log-only until Vertex rerank lands).
 - **9. Orchestrator** — Done: [agents/orchestrator.py](agents/orchestrator.py) — Vertex Gemini (`vertex_llm_model`, default `gemini-2.0-flash`), `temperature=0`, JSON route; Pydantic validate; **retry** once with repair user prompt; **RAG-only** `fallback_parse` / `fallback_no_gcp`; intents capped at **3**. [graph/pipeline.py](graph/pipeline.py) node **`orchestrator`**; `/query` returns **`orchestrator`** (replaces stub key).
 - **10. Synthesizer** — Done: [agents/rag_agent.py](agents/rag_agent.py) (§6.2 JSON) → [agents/synthesizer.py](agents/synthesizer.py) (§6.5 user `message` + optional `save_memory` in model JSON); [tools/memory_tool.py](tools/memory_tool.py) + [memory/longterm.py](memory/longterm.py) `insert_user_memory` — **only synthesizer** calls `save_memory`. `/query` includes `rag_structured`, `synthesis`; `status: ok`.
-- **11. Analytics vertical slice** — `scripts/bootstrap_bq.py` + README; IAM least privilege; analytics agent + guarded SQL.
+- **11. Analytics vertical slice** — Done: [scripts/bootstrap_bq.py](scripts/bootstrap_bq.py) + [scripts/README.md](scripts/README.md); [tools/bigquery_tool.py](tools/bigquery_tool.py) read-only SQL guard + caps; [agents/analytics_agent.py](agents/analytics_agent.py); graph **`analytics`** after **`retrieve`** when intent; `/query` includes `analytics_structured`.
 - **12. Code agent + E2B** — Python template, no egress, baked `google-cloud-`*; `code_exec_tool`; caps 15s, 64KiB stdout/stderr, 2 concurrent/replica.
 - **13. Parallel fan-out & synthesis** — Full multi-agent paths; Langfuse spans end-to-end.
 - **14. POST /query hard API** — Rate limit 60/min (Redis-backed slowapi); latency + `session_id` in response; stable 403 JSON for bad session.
@@ -40,7 +40,7 @@ From spec: **(a)** auth + session tests green before agents; **(b)** RAG path pr
 | ----------------------------------- | ------ |
 | (a) Auth + session                  | ☐      |
 | (b) RAG traces before prod rerank   | ☐      |
-| (c) Repeatable BQ bootstrap         | ☐      |
+| (c) Repeatable BQ bootstrap         | ☑      |
 | (d) E2B pinned + timeout regression | ☐      |
 
 
@@ -57,4 +57,5 @@ From spec: **(a)** auth + session tests green before agents; **(b)** RAG path pr
 - **Phase 8:** Ingestion (`ingestion/*`), Vertex `text-embedding-004`, Qdrant upsert CLI ([ingestion/indexer.py](ingestion/indexer.py)), [tools/retrieval_tool.py](tools/retrieval_tool.py), graph **`retrieve`** node; `retrieval_hits` on `/query`; `RAG_VERTEX_RERANK` log-only stub.
 - **Phase 9:** [agents/orchestrator.py](agents/orchestrator.py) — Gemini routing + fallbacks; graph node `orchestrator`; `orchestrator.source` metadata on `/query`.
 - **Phase 10:** RAG JSON ([agents/rag_agent.py](agents/rag_agent.py)), synthesizer ([agents/synthesizer.py](agents/synthesizer.py)), [tools/memory_tool.py](tools/memory_tool.py); graph nodes `rag_structured`, `synthesizer`; shared [agents/vertex.py](agents/vertex.py), [agents/jsonutil.py](agents/jsonutil.py).
+- **Phase 11:** BigQuery bootstrap + IAM notes in [scripts/README.md](scripts/README.md); [agents/analytics_agent.py](agents/analytics_agent.py) + [tools/bigquery_tool.py](tools/bigquery_tool.py); pipeline order orchestrator → retrieve → analytics → rag_structured → synthesizer; Ruff + pytest green.
 
