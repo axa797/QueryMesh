@@ -37,6 +37,11 @@ class Settings(BaseSettings):
     bigquery_dataset: str = "querymesh"
     bigquery_location: str = "US"
 
+    # Langfuse (§11 — hosted SaaS; optional locally)
+    langfuse_public_key: str | None = None
+    langfuse_secret_key: str | None = None
+    langfuse_host: str | None = None
+
     # E2B / code execution (§6.3, §15.12) — optional locally
     e2b_api_key: str | None = None
     e2b_template_id: str = "querymesh-code"

@@ -1,4 +1,4 @@
-"""LangGraph query pipeline through orchestration + RAG + optional analytics/code (Phase 7–12)."""
+"""LangGraph query pipeline: orchestration, optional parallel specialists, RAG, synthesis."""
 
 from __future__ import annotations
 
@@ -44,6 +44,12 @@ def _intents(state: QueryGraphState) -> list[str]:
     return [str(x) for x in raw]
 
 
+def _parallel_specialists(orch: dict[str, Any] | None) -> bool:
+    if not isinstance(orch, dict):
+        return False
+    return bool(orch.get("parallel"))
+
+
 def echo_node(state: QueryGraphState) -> dict[str, str]:
     q = (state.get("query") or "").strip()
     return {"echo_reply": f"echo:{q[:2000]}"}
@@ -70,14 +76,27 @@ async def retrieve_node(state: QueryGraphState) -> dict[str, list[dict[str, Any]
     return {"retrieval_hits": hits}
 
 
-async def analytics_node(state: QueryGraphState) -> dict[str, dict[str, Any]]:
+def _skipped_analytics() -> dict[str, Any]:
+    return {
+        "analytics_structured": {
+            "source": "skipped",
+            "interpretation": "Analytics intent not selected for this query.",
+        },
+    }
+
+
+def _skipped_code() -> dict[str, Any]:
+    return {
+        "code_structured": {
+            "source": "skipped",
+            "interpretation": "Code generation intent not selected for this query.",
+        },
+    }
+
+
+async def _analytics_branch(state: QueryGraphState) -> dict[str, Any]:
     if "analytics" not in _intents(state):
-        return {
-            "analytics_structured": {
-                "source": "skipped",
-                "interpretation": "Analytics intent not selected for this query.",
-            },
-        }
+        return _skipped_analytics()
     stub = state.get("orchestrator") or {}
     rq = stub.get("rewritten_queries") if isinstance(stub, dict) else None
     rewritten = ""
@@ -88,14 +107,9 @@ async def analytics_node(state: QueryGraphState) -> dict[str, dict[str, Any]]:
     return {"analytics_structured": out}
 
 
-async def code_generation_node(state: QueryGraphState) -> dict[str, dict[str, Any]]:
+async def _code_branch(state: QueryGraphState) -> dict[str, Any]:
     if "code_generation" not in _intents(state):
-        return {
-            "code_structured": {
-                "source": "skipped",
-                "interpretation": "Code generation intent not selected for this query.",
-            },
-        }
+        return _skipped_code()
     stub = state.get("orchestrator") or {}
     rq = stub.get("rewritten_queries") if isinstance(stub, dict) else None
     rewritten = ""
@@ -104,6 +118,31 @@ async def code_generation_node(state: QueryGraphState) -> dict[str, dict[str, An
     q = rewritten or (state.get("query") or "").strip()
     out = await run_code_generation(q)
     return {"code_structured": out}
+
+
+async def specialists_node(state: QueryGraphState) -> dict[str, Any]:
+    """
+    Run analytics and code agents — **in parallel** when orchestrator says ``parallel: true``
+    and both intents are active (spec §6–7).
+    """
+    intents_s = set(_intents(state))
+    orch = state.get("orchestrator") if isinstance(state.get("orchestrator"), dict) else {}
+    orch = orch or {}
+    need_a = "analytics" in intents_s
+    need_c = "code_generation" in intents_s
+    use_parallel = _parallel_specialists(orch) and need_a and need_c
+
+    if use_parallel:
+        a_part, c_part = await asyncio.gather(
+            _analytics_branch(state),
+            _code_branch(state),
+        )
+        return {**a_part, **c_part}
+
+    merged: dict[str, Any] = {}
+    merged.update(await _analytics_branch(state) if need_a else _skipped_analytics())
+    merged.update(await _code_branch(state) if need_c else _skipped_code())
+    return merged
 
 
 async def rag_structured_node(state: QueryGraphState) -> dict[str, dict[str, Any]]:
@@ -144,16 +183,14 @@ def build_query_graph() -> StateGraph:
     g.add_node("echo", echo_node)
     g.add_node("orchestrator", orchestrator_node)
     g.add_node("retrieve", retrieve_node)
-    g.add_node("analytics", analytics_node)
-    g.add_node("code_generation", code_generation_node)
+    g.add_node("specialists", specialists_node)
     g.add_node("rag_structured", rag_structured_node)
     g.add_node("synthesizer", synthesizer_node)
     g.add_edge(START, "echo")
     g.add_edge("echo", "orchestrator")
     g.add_edge("orchestrator", "retrieve")
-    g.add_edge("retrieve", "analytics")
-    g.add_edge("analytics", "code_generation")
-    g.add_edge("code_generation", "rag_structured")
+    g.add_edge("retrieve", "specialists")
+    g.add_edge("specialists", "rag_structured")
     g.add_edge("rag_structured", "synthesizer")
     g.add_edge("synthesizer", END)
     return g

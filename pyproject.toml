@@ -26,6 +26,8 @@ dependencies = [
   "sqlalchemy[asyncio]>=2",
   "uvicorn[standard]>=0.32",
   "e2b>=2.20.3",
+  "langfuse>=4.5.1",
+  "langchain>=0.3",
 ]
 
 [dependency-groups]

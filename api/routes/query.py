@@ -10,6 +10,7 @@ from memory.longterm import compact_to_token_budget, load_top_k_memories
 from memory.redis_client import RedisDep
 from memory.session import get_session_factory
 from memory.session_envelope import resolve_session
+from observability.instrumentation import build_langgraph_invoke_config, flush_langfuse
 
 from api.deps import CurrentUserId
 from api.schemas.query import QueryRequest
@@ -33,14 +34,21 @@ async def post_query(
     memory_compact = compact_to_token_budget(rows)
 
     graph = await get_compiled_query_graph()
-    graph_out = await graph.ainvoke(
-        {
-            "user_id": str(user_id),
-            "query": body.query,
-            "memory_compact": memory_compact,
-        },
-        config={"configurable": {"thread_id": thread_id}},
+    invoke_cfg, trace_id = build_langgraph_invoke_config(
+        thread_id=thread_id,
+        session_id=str(session_id),
     )
+    try:
+        graph_out = await graph.ainvoke(
+            {
+                "user_id": str(user_id),
+                "query": body.query,
+                "memory_compact": memory_compact,
+            },
+            config=invoke_cfg,
+        )
+    finally:
+        flush_langfuse()
 
     latency_ms = max(0, int((time.monotonic() - t0) * 1000))
     return {
@@ -55,7 +63,7 @@ async def post_query(
             "rag_structured": graph_out.get("rag_structured"),
             "synthesis": graph_out.get("synthesis"),
         },
-        "trace_id": "stub",
+        "trace_id": trace_id,
         "latency_ms": latency_ms,
         "session_id": str(session_id),
     }
