@@ -37,6 +37,15 @@ class Settings(BaseSettings):
     bigquery_dataset: str = "querymesh"
     bigquery_location: str = "US"
 
+    # E2B / code execution (§6.3, §15.12) — optional locally
+    e2b_api_key: str | None = None
+    e2b_template_id: str = "querymesh-code"
+    e2b_sandbox_timeout_seconds: int = 120
+    code_exec_wall_seconds: float = 15.0
+    code_exec_output_max_bytes: int = 65536
+    code_exec_max_concurrent: int = 2
+    code_exec_max_code_chars: int = 200_000
+
 
 @lru_cache
 def get_settings() -> Settings:

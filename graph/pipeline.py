@@ -1,4 +1,4 @@
-"""LangGraph query pipeline through orchestration + RAG + optional analytics (Phase 7–11)."""
+"""LangGraph query pipeline through orchestration + RAG + optional analytics/code (Phase 7–12)."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from typing import Any
 from uuid import UUID
 
 from agents.analytics_agent import run_analytics
+from agents.code_agent import run_code_generation
 from agents.orchestrator import run_orchestrator
 from agents.rag_agent import run_rag_structured
 from agents.synthesizer import run_synthesizer
@@ -30,6 +31,7 @@ class QueryGraphState(TypedDict, total=False):
     orchestrator: dict[str, Any]
     retrieval_hits: list[dict[str, Any]]
     analytics_structured: dict[str, Any]
+    code_structured: dict[str, Any]
     rag_structured: dict[str, Any]
     synthesis: dict[str, Any]
 
@@ -86,6 +88,24 @@ async def analytics_node(state: QueryGraphState) -> dict[str, dict[str, Any]]:
     return {"analytics_structured": out}
 
 
+async def code_generation_node(state: QueryGraphState) -> dict[str, dict[str, Any]]:
+    if "code_generation" not in _intents(state):
+        return {
+            "code_structured": {
+                "source": "skipped",
+                "interpretation": "Code generation intent not selected for this query.",
+            },
+        }
+    stub = state.get("orchestrator") or {}
+    rq = stub.get("rewritten_queries") if isinstance(stub, dict) else None
+    rewritten = ""
+    if isinstance(rq, dict):
+        rewritten = (rq.get("code_generation") or "").strip()
+    q = rewritten or (state.get("query") or "").strip()
+    out = await run_code_generation(q)
+    return {"code_structured": out}
+
+
 async def rag_structured_node(state: QueryGraphState) -> dict[str, dict[str, Any]]:
     if "retrieval" not in _intents(state):
         return {
@@ -113,6 +133,7 @@ async def synthesizer_node(state: QueryGraphState) -> dict[str, dict[str, Any]]:
         state.get("orchestrator") or {},
         state.get("rag_structured") or {},
         state.get("analytics_structured"),
+        state.get("code_structured"),
         UUID(uid_s),
     )
     return {"synthesis": syn}
@@ -124,13 +145,15 @@ def build_query_graph() -> StateGraph:
     g.add_node("orchestrator", orchestrator_node)
     g.add_node("retrieve", retrieve_node)
     g.add_node("analytics", analytics_node)
+    g.add_node("code_generation", code_generation_node)
     g.add_node("rag_structured", rag_structured_node)
     g.add_node("synthesizer", synthesizer_node)
     g.add_edge(START, "echo")
     g.add_edge("echo", "orchestrator")
     g.add_edge("orchestrator", "retrieve")
     g.add_edge("retrieve", "analytics")
-    g.add_edge("analytics", "rag_structured")
+    g.add_edge("analytics", "code_generation")
+    g.add_edge("code_generation", "rag_structured")
     g.add_edge("rag_structured", "synthesizer")
     g.add_edge("synthesizer", END)
     return g

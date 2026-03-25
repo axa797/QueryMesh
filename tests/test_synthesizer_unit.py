@@ -32,6 +32,7 @@ def test_offline_synthesis(no_gcp: None) -> None:
             {"intents": ["retrieval"], "rewritten_queries": {"retrieval": "x"}},
             rag,
             None,
+            None,
             uuid.uuid4(),
         )
     )

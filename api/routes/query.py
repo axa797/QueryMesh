@@ -51,6 +51,7 @@ async def post_query(
             "orchestrator": graph_out.get("orchestrator"),
             "retrieval_hits": graph_out.get("retrieval_hits") or [],
             "analytics_structured": graph_out.get("analytics_structured"),
+            "code_structured": graph_out.get("code_structured"),
             "rag_structured": graph_out.get("rag_structured"),
             "synthesis": graph_out.get("synthesis"),
         },

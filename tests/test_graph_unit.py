@@ -59,6 +59,7 @@ def test_full_linear_pipeline_mocked_llm_steps() -> None:
             assert out["orchestrator"]["source"] == "test"
             assert out.get("retrieval_hits") == []
             assert out["rag_structured"]["answer"] == "dummy"
+            assert out["code_structured"]["source"] == "skipped"
             assert out["synthesis"]["message"] == "Hi"
 
     asyncio.run(_run())

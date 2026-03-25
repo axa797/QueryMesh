@@ -25,6 +25,8 @@ SYNTH_SYSTEM = (
     "Preserve all citations from structured RAG JSON in your message (document + section). "
     "When Analytics JSON includes query results, summarize them accurately with row counts "
     "and key fields. "
+    "When Code agent JSON includes Python and optional execution output, summarize the "
+    "snippet and any stdout/stderr or exit code faithfully. "
     "Do not add facts not present in the agent outputs.\n"
     "Use short sections if helpful.\n"
     "Return JSON with keys: message (string), save_memory (null or object with memory_type "
@@ -65,6 +67,7 @@ def _offline_synthesis(
     query: str,
     rag: dict[str, Any],
     analytics: dict[str, Any] | None,
+    code: dict[str, Any] | None,
     *,
     memory_saved: bool,
 ) -> dict[str, Any]:
@@ -78,6 +81,9 @@ def _offline_synthesis(
     if analytics and analytics.get("source") not in (None, "skipped"):
         ajson = json.dumps(analytics, indent=2)[:6000]
         parts.append(f"Analytics:\n{ajson}")
+    if code and code.get("source") not in (None, "skipped"):
+        cj = json.dumps(code, indent=2)[:6000]
+        parts.append(f"Code agent:\n{cj}")
     msg = "\n\n".join(p for p in parts if p.strip())
     return {
         "message": msg or f"(No synthesis) Query: {query[:500]}",
@@ -93,17 +99,20 @@ def _synth_payload(
     orchestrator: dict[str, Any],
     rag: dict[str, Any],
     analytics: dict[str, Any] | None,
+    code: dict[str, Any] | None,
 ) -> str:
     mem = (memory_compact or "").strip()[:2000]
     orch = json.dumps(orchestrator, indent=2)[:4000]
     ragj = json.dumps(rag, indent=2)[:8000]
     aj = json.dumps(analytics or {}, indent=2)[:8000]
+    cj = json.dumps(code or {}, indent=2)[:8000]
     return (
         f"User query:\n{query.strip()}\n\n"
         f"Long-term memory summary (context only):\n{mem or '(none)'}\n\n"
         f"Orchestrator plan:\n{orch}\n\n"
         f"Structured RAG JSON:\n{ragj}\n\n"
-        f"Structured Analytics JSON:\n{aj}\n"
+        f"Structured Analytics JSON:\n{aj}\n\n"
+        f"Structured Code agent JSON:\n{cj}\n"
     )
 
 
@@ -133,6 +142,7 @@ async def run_synthesizer(
     orchestrator: dict[str, Any],
     rag_structured: dict[str, Any],
     analytics_structured: dict[str, Any] | None,
+    code_structured: dict[str, Any] | None,
     user_id: UUID,
 ) -> dict[str, Any]:
     """LLM synthesis + optional ``save_memory`` in one JSON response."""
@@ -144,6 +154,7 @@ async def run_synthesizer(
         orchestrator,
         rag_structured,
         analytics_structured,
+        code_structured,
     )
 
     memory_saved = False
@@ -154,6 +165,7 @@ async def run_synthesizer(
             query,
             rag_structured,
             analytics_structured,
+            code_structured,
             memory_saved=False,
         )
 
@@ -173,6 +185,7 @@ async def run_synthesizer(
             query,
             rag_structured,
             analytics_structured,
+            code_structured,
             memory_saved=False,
         )
 

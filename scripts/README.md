@@ -32,3 +32,14 @@ The human running **bootstrap** once needs broader rights (e.g. `bigquery.admin`
 - `BIGQUERY_PROJECT_ID` — often same as `GOOGLE_CLOUD_PROJECT`
 - `BIGQUERY_DATASET` — default `querymesh`
 - `BIGQUERY_LOCATION` — dataset location for bootstrap (default `US` in the script)
+
+## E2B — code execution sandbox (spec §6.3, Phase 12)
+
+**Prereqs:** E2B account + API key; custom template built from [e2b/Dockerfile](../e2b/Dockerfile) (Python + `google-cloud-*` wheels, **no ADC** baked in). Build/publish with the [E2B template CLI](https://e2b.dev/docs/template/quickstart); set **`E2B_TEMPLATE_ID`** to the template name or ID you deployed (default in code: `querymesh-code`).
+
+**Runtime env (API):**
+
+- `E2B_API_KEY` — required to run user code in the sandbox.
+- Optional tuning: see `code_exec_*` and `e2b_*` fields in [api/settings.py](../api/settings.py) (15s command wall, 64KiB combined stdout/stderr cap, max 2 concurrent executions per process).
+
+Sandboxes are created with **`allow_internet_access=False`**. The API must not inject GCP credentials into the sandbox environment.
