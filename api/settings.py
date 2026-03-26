@@ -37,7 +37,10 @@ class Settings(BaseSettings):
     bigquery_dataset: str = "querymesh"
     bigquery_location: str = "US"
 
-    # Langfuse (§11 — hosted SaaS; optional locally)
+    # Rate limiting (Phase 14 — slowapi; default same Redis as sessions)
+    query_rate_limit: str = "60/minute"
+    rate_limit_storage_uri: str | None = None
+
     langfuse_public_key: str | None = None
     langfuse_secret_key: str | None = None
     langfuse_host: str | None = None

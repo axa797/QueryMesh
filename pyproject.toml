@@ -28,6 +28,7 @@ dependencies = [
   "e2b>=2.20.3",
   "langfuse>=4.5.1",
   "langchain>=0.3",
+  "slowapi>=0.1.9",
 ]
 
 [dependency-groups]

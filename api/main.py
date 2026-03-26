@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.exception_handlers import http_exception_handler
 from fastapi.responses import JSONResponse
 from graph.pipeline import dispose_compiled_query_graph
@@ -13,8 +13,12 @@ from memory.checkpointer import dispose_checkpoint_pool
 from memory.database import database_url, ping_postgres, ping_redis
 from memory.redis_client import close_redis
 from memory.session import dispose_engine
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
+from api.rate_limit import limiter
 from api.routes import query as query_routes
+from api.settings import get_settings
 
 
 @asynccontextmanager
@@ -39,9 +43,29 @@ async def stable_json_errors(request, exc: HTTPException):
     return await http_exception_handler(request, exc)
 
 
+@app.exception_handler(RateLimitExceeded)
+def rate_limit_exceeded_json(request: Request, exc: RateLimitExceeded):
+    """Stable 429 shape (spec §8)."""
+    rule = get_settings().query_rate_limit
+    response = JSONResponse(
+        status_code=429,
+        content={
+            "error": "rate_limit_exceeded",
+            "message": f"Too many requests for this API key (limit {rule}).",
+        },
+    )
+    return request.app.state.limiter._inject_headers(
+        response,
+        getattr(request.state, "view_rate_limit", None),
+    )
+
+
+app.state.limiter = limiter
+app.add_middleware(SlowAPIMiddleware)
 app.include_router(query_routes.router)
 
 
+@limiter.exempt
 @app.get("/health")
 async def health() -> dict:
     """Liveness + dependency status (spec §8 API)."""
