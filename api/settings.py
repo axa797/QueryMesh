@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     qdrant_api_key: str | None = None
     qdrant_collection: str = "gcp_docs"
 
+    # Ingestion API (Phase 15): document directory for `source=gcp_docs`
+    ingestion_gcp_docs_dir: str = ""
+    ingestion_recreate_collection: bool = False
+
     # §4 feature flag — prod on, local off
     rag_vertex_rerank: bool = False
 

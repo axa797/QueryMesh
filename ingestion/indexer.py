@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import logging
 import uuid
+from dataclasses import dataclass
 from pathlib import Path
 
 from qdrant_client import QdrantClient
@@ -18,6 +19,15 @@ logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
 _NAMESPACE_UUID = uuid.uuid5(uuid.NAMESPACE_URL, "querymesh/ingest/point-id")
+
+
+@dataclass(frozen=True)
+class RunIndexResult:
+    """CLI exit code + number of vectors upserted (for job status)."""
+
+    exit_code: int
+    docs_indexed: int
+    message: str = ""
 
 
 def _point_id(chunk: TextChunk, ordinal: int) -> str:
@@ -53,28 +63,36 @@ def run_index(
     location: str,
     model_id: str,
     recreate: bool,
-) -> int:
-    raw_docs = load_source_dir(source)
+) -> RunIndexResult:
+    try:
+        raw_docs = load_source_dir(source)
+    except (FileNotFoundError, OSError) as e:
+        log.error("Cannot load source %s: %s", source, e)
+        return RunIndexResult(1, 0, str(e))
     if not raw_docs:
         log.error("No documents loaded from %s", source)
-        return 1
+        return RunIndexResult(1, 0, "No documents loaded")
     chunks = chunk_documents(raw_docs)
     if not chunks:
         log.error("No chunks produced from %s", source)
-        return 1
+        return RunIndexResult(1, 0, "No chunks produced")
 
     texts = [c.text for c in chunks]
     log.info("Embedding %s chunk(s)…", len(texts))
-    vectors = embed_in_batches(
-        texts,
-        project=project,
-        location=location,
-        model_id=model_id,
-        for_query=False,
-    )
+    try:
+        vectors = embed_in_batches(
+            texts,
+            project=project,
+            location=location,
+            model_id=model_id,
+            for_query=False,
+        )
+    except Exception as e:
+        log.exception("Embedding failed")
+        return RunIndexResult(1, 0, str(e))
     if len(vectors) != len(chunks):
         log.error("Embedding count mismatch: %s vs %s", len(vectors), len(chunks))
-        return 1
+        return RunIndexResult(1, 0, "Embedding count mismatch")
     dim = len(vectors[0])
 
     client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key)
@@ -96,9 +114,12 @@ def run_index(
         ]
         client.upload_points(collection_name=collection, points=points, batch_size=64)
         log.info("Upserted %s point(s) into %s", len(points), collection)
+    except Exception as e:
+        log.exception("Qdrant upsert failed")
+        return RunIndexResult(1, 0, str(e))
     finally:
         client.close()
-    return 0
+    return RunIndexResult(0, len(chunks), "")
 
 
 def main() -> None:
@@ -121,18 +142,17 @@ def main() -> None:
         help="Drop and recreate the Qdrant collection.",
     )
     args = p.parse_args()
-    raise SystemExit(
-        run_index(
-            source=args.source.resolve(),
-            qdrant_url=args.qdrant_url,
-            qdrant_api_key=args.qdrant_api_key,
-            collection=args.collection,
-            project=args.google_cloud_project,
-            location=args.google_cloud_location,
-            model_id=args.embedding_model,
-            recreate=args.recreate_collection,
-        )
+    r = run_index(
+        source=args.source.resolve(),
+        qdrant_url=args.qdrant_url,
+        qdrant_api_key=args.qdrant_api_key,
+        collection=args.collection,
+        project=args.google_cloud_project,
+        location=args.google_cloud_location,
+        model_id=args.embedding_model,
+        recreate=args.recreate_collection,
     )
+    raise SystemExit(r.exit_code)
 
 
 if __name__ == "__main__":

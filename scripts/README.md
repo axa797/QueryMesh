@@ -4,6 +4,20 @@
 
 Issue API keys (see [AGENTS.md](../AGENTS.md) Development section).
 
+## HTTP ingestion API (`POST /ingest`, Phase 15)
+
+From a running API, with `INGESTION_GCP_DOCS_DIR` pointing at your document tree and Qdrant + Vertex available:
+
+```bash
+curl -sS -X POST "http://localhost:8000/ingest" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"source":"gcp_docs"}'
+# Poll: GET /ingest/{job_id} with the same Authorization header.
+```
+
+CLI alternative: `PYTHONPATH=. uv run python -m ingestion.indexer --source /path/to/docs --google-cloud-project YOUR_PROJECT_ID`.
+
 ## `bootstrap_bq.py` — synthetic BigQuery doc metadata (spec §6.4)
 
 **Prereqs:** [Application Default Credentials](https://cloud.google.com/docs/authentication/application-default-credentials) (`gcloud auth application-default login`). **Do not** rely on committed service account JSON.
