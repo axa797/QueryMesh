@@ -8,7 +8,7 @@ Update this file when starting or finishing a phase (short note under the item i
 
 ## Current focus
 
-- **Phase 17** — Eval harness (golden dataset, RAGAS, DeepEval).
+- **Phase 18** — Cloud Build & Run deploy (Dockerfile, `cloudbuild.yaml`, Secret Manager).
 
 ## Phase checklist (§15)
 
@@ -28,7 +28,7 @@ Update this file when starting or finishing a phase (short note under the item i
 - **14. POST /query hard API** — Done: [api/rate_limit.py](api/rate_limit.py) slowapi `default_limits` + Redis (`RATE_LIMIT_STORAGE_URI` or `REDIS_URL`); per Bearer-hash key, IP fallback; limit enforced **before** auth via `SlowAPIMiddleware`; stable **429** JSON (`rate_limit_exceeded`); `/health` exempt; [tests/conftest.py](tests/conftest.py) `memory://` default for pytest; `QUERY_RATE_LIMIT` setting (`60/minute`).
 - **15. Ingestion API** — Done: [api/routes/ingest.py](api/routes/ingest.py) `POST /ingest` + `GET /ingest/{job_id}`; [api/ingestion_jobs.py](api/ingestion_jobs.py) in-memory job state; [api/ingestion_runner.py](api/ingestion_runner.py) + [ingestion/indexer.py](ingestion/indexer.py) `RunIndexResult`; settings `INGESTION_GCP_DOCS_DIR`, `INGESTION_RECREATE_COLLECTION`; [tests/test_ingest_api_unit.py](tests/test_ingest_api_unit.py).
 - **16. Observability & dashboards** — Done: [observability/gcp_monitoring.py](observability/gcp_monitoring.py) metric names + alert constants (stubs / log-based path); Langfuse `user_id` + `LANGFUSE_TRACING_ENVIRONMENT` on traces; [tests/test_gcp_monitoring_unit.py](tests/test_gcp_monitoring_unit.py).
-- **17. Eval harness** — Golden dataset + RAGAS + DeepEval; nightly/manual; keep PR pytest fast.
+- **17. Eval harness** — Done: [evals/golden_dataset.json](evals/golden_dataset.json) (30 rows), [evals/golden_loader.py](evals/golden_loader.py), [evals/ragas_eval.py](evals/ragas_eval.py), [evals/test_deepeval_suite.py](evals/test_deepeval_suite.py); `eval` pytest marker excluded from default runs; `RUN_EVAL=1` + `uv sync --group eval` for LLM judges.
 - **18. Cloud Build & Run deploy** — Dockerfile, `cloudbuild.yaml`, Secret Manager; `us-central1` API (+ Qdrant if applicable).
 
 ## Checkpoint gates (between phases)
@@ -63,3 +63,4 @@ From spec: **(a)** auth + session tests green before agents; **(b)** RAG path pr
 - **Phase 14:** slowapi + Redis rate limit on `POST /query`; sync `RateLimitExceeded` handler; [tests/test_query_rate_limit.py](tests/test_query_rate_limit.py).
 - **Phase 15:** `POST /ingest` / `GET /ingest/{job_id}`; BackgroundTasks; [tests/test_ingest_api_unit.py](tests/test_ingest_api_unit.py).
 - **Phase 16:** `user_id` on Langfuse graph metadata; `langfuse_tracing_environment`; [observability/gcp_monitoring.py](observability/gcp_monitoring.py) Cloud Monitoring naming + alert constants (export stub); `/query` debug metric log hook.
+- **Phase 17:** [evals/](evals/) golden JSON + [evals/ragas_eval.py](evals/ragas_eval.py) (RAGAS + Vertex); [evals/test_deepeval_suite.py](evals/test_deepeval_suite.py) (DeepEval faithfulness sample); [tests/test_golden_loader_unit.py](tests/test_golden_loader_unit.py); default `pytest` skips `integration` + `eval` markers.

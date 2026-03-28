@@ -37,6 +37,12 @@ dev = [
   "ruff>=0.9",
   "pytest>=8",
 ]
+eval = [
+    "datasets>=2.14",
+    "deepeval>=1.0",
+    "langchain-google-vertexai>=2.0",
+    "ragas>=0.1",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = [
@@ -75,5 +81,6 @@ testpaths = ["evals", "tests"]
 pythonpath = ["."]
 markers = [
   "integration: requires DATABASE_URL and running Postgres",
+  "eval: RAGAS/DeepEval LLM evals; run nightly or with RUN_EVAL=1",
 ]
-addopts = ["-m", "not integration"]
+addopts = ["-m", "not integration and not eval"]

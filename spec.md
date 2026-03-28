@@ -156,8 +156,9 @@ querymesh/
 │   └── bootstrap_bq.py       # DDL + deterministic synthetic seed (+ README instructions)
 ├── evals/
 │   ├── golden_dataset.json   # 30 hand-crafted Q&A pairs
+│   ├── golden_loader.py      # Load + validate golden JSON
 │   ├── ragas_eval.py         # RAGAS evaluation runner
-│   └── deepeval_suite.py     # DeepEval test suite
+│   └── test_deepeval_suite.py  # DeepEval pytest suite (``eval`` marker)
 ├── observability/
 │   └── instrumentation.py    # Langfuse tracing setup (hosted endpoint)
 ├── infra/
@@ -644,8 +645,9 @@ uvicorn api.main:app --reload
 # Tests (PR-equivalent)
 pytest -q
 
-# Evals (nightly-style locally)
-pytest evals/deepeval_suite.py -v
+# Evals (nightly-style locally; ``uv sync --group eval`` first)
+RUN_EVAL=1 uv run --group eval python -m evals.ragas_eval --limit 5
+RUN_EVAL=1 uv run --group eval pytest evals/test_deepeval_suite.py -v
 ```
 
 ---

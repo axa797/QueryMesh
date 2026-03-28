@@ -1,0 +1,242 @@
+[
+  {
+    "id": "ret-01",
+    "category": "retrieval",
+    "question": "Retrieval Q1: What does GCP service S1 primarily provide?",
+    "reference_answer": "Service S1 provides managed infrastructure for workload type 1.",
+    "contexts": [
+      "Service S1 is a Google Cloud offering for scalable workloads.",
+      "Documentation states S1 provides managed infrastructure for workload type 1."
+    ]
+  },
+  {
+    "id": "ret-02",
+    "category": "retrieval",
+    "question": "Retrieval Q2: What does GCP service S2 primarily provide?",
+    "reference_answer": "Service S2 provides managed infrastructure for workload type 2.",
+    "contexts": [
+      "Service S2 is a Google Cloud offering for scalable workloads.",
+      "Documentation states S2 provides managed infrastructure for workload type 2."
+    ]
+  },
+  {
+    "id": "ret-03",
+    "category": "retrieval",
+    "question": "Retrieval Q3: What does GCP service S3 primarily provide?",
+    "reference_answer": "Service S3 provides managed infrastructure for workload type 3.",
+    "contexts": [
+      "Service S3 is a Google Cloud offering for scalable workloads.",
+      "Documentation states S3 provides managed infrastructure for workload type 3."
+    ]
+  },
+  {
+    "id": "ret-04",
+    "category": "retrieval",
+    "question": "Retrieval Q4: What does GCP service S4 primarily provide?",
+    "reference_answer": "Service S4 provides managed infrastructure for workload type 4.",
+    "contexts": [
+      "Service S4 is a Google Cloud offering for scalable workloads.",
+      "Documentation states S4 provides managed infrastructure for workload type 4."
+    ]
+  },
+  {
+    "id": "ret-05",
+    "category": "retrieval",
+    "question": "Retrieval Q5: What does GCP service S5 primarily provide?",
+    "reference_answer": "Service S5 provides managed infrastructure for workload type 0.",
+    "contexts": [
+      "Service S5 is a Google Cloud offering for scalable workloads.",
+      "Documentation states S5 provides managed infrastructure for workload type 0."
+    ]
+  },
+  {
+    "id": "ret-06",
+    "category": "retrieval",
+    "question": "Retrieval Q6: What does GCP service S6 primarily provide?",
+    "reference_answer": "Service S6 provides managed infrastructure for workload type 1.",
+    "contexts": [
+      "Service S6 is a Google Cloud offering for scalable workloads.",
+      "Documentation states S6 provides managed infrastructure for workload type 1."
+    ]
+  },
+  {
+    "id": "ret-07",
+    "category": "retrieval",
+    "question": "Retrieval Q7: What does GCP service S7 primarily provide?",
+    "reference_answer": "Service S7 provides managed infrastructure for workload type 2.",
+    "contexts": [
+      "Service S7 is a Google Cloud offering for scalable workloads.",
+      "Documentation states S7 provides managed infrastructure for workload type 2."
+    ]
+  },
+  {
+    "id": "ret-08",
+    "category": "retrieval",
+    "question": "Retrieval Q8: What does GCP service S8 primarily provide?",
+    "reference_answer": "Service S8 provides managed infrastructure for workload type 3.",
+    "contexts": [
+      "Service S8 is a Google Cloud offering for scalable workloads.",
+      "Documentation states S8 provides managed infrastructure for workload type 3."
+    ]
+  },
+  {
+    "id": "ret-09",
+    "category": "retrieval",
+    "question": "Retrieval Q9: What does GCP service S9 primarily provide?",
+    "reference_answer": "Service S9 provides managed infrastructure for workload type 4.",
+    "contexts": [
+      "Service S9 is a Google Cloud offering for scalable workloads.",
+      "Documentation states S9 provides managed infrastructure for workload type 4."
+    ]
+  },
+  {
+    "id": "ret-10",
+    "category": "retrieval",
+    "question": "Retrieval Q10: What does GCP service S10 primarily provide?",
+    "reference_answer": "Service S10 provides managed infrastructure for workload type 0.",
+    "contexts": [
+      "Service S10 is a Google Cloud offering for scalable workloads.",
+      "Documentation states S10 provides managed infrastructure for workload type 0."
+    ]
+  },
+  {
+    "id": "code-01",
+    "category": "code_generation",
+    "question": "Code Q1: Write Python to list Cloud Storage buckets in project P1.",
+    "reference_answer": "Use google.cloud.storage.Client(project='P1').list_buckets().",
+    "contexts": []
+  },
+  {
+    "id": "code-02",
+    "category": "code_generation",
+    "question": "Code Q2: Write Python to list Cloud Storage buckets in project P2.",
+    "reference_answer": "Use google.cloud.storage.Client(project='P2').list_buckets().",
+    "contexts": []
+  },
+  {
+    "id": "code-03",
+    "category": "code_generation",
+    "question": "Code Q3: Write Python to list Cloud Storage buckets in project P3.",
+    "reference_answer": "Use google.cloud.storage.Client(project='P3').list_buckets().",
+    "contexts": []
+  },
+  {
+    "id": "code-04",
+    "category": "code_generation",
+    "question": "Code Q4: Write Python to list Cloud Storage buckets in project P4.",
+    "reference_answer": "Use google.cloud.storage.Client(project='P4').list_buckets().",
+    "contexts": []
+  },
+  {
+    "id": "code-05",
+    "category": "code_generation",
+    "question": "Code Q5: Write Python to list Cloud Storage buckets in project P5.",
+    "reference_answer": "Use google.cloud.storage.Client(project='P5').list_buckets().",
+    "contexts": []
+  },
+  {
+    "id": "code-06",
+    "category": "code_generation",
+    "question": "Code Q6: Write Python to list Cloud Storage buckets in project P6.",
+    "reference_answer": "Use google.cloud.storage.Client(project='P6').list_buckets().",
+    "contexts": []
+  },
+  {
+    "id": "code-07",
+    "category": "code_generation",
+    "question": "Code Q7: Write Python to list Cloud Storage buckets in project P7.",
+    "reference_answer": "Use google.cloud.storage.Client(project='P7').list_buckets().",
+    "contexts": []
+  },
+  {
+    "id": "code-08",
+    "category": "code_generation",
+    "question": "Code Q8: Write Python to list Cloud Storage buckets in project P8.",
+    "reference_answer": "Use google.cloud.storage.Client(project='P8').list_buckets().",
+    "contexts": []
+  },
+  {
+    "id": "code-09",
+    "category": "code_generation",
+    "question": "Code Q9: Write Python to list Cloud Storage buckets in project P9.",
+    "reference_answer": "Use google.cloud.storage.Client(project='P9').list_buckets().",
+    "contexts": []
+  },
+  {
+    "id": "code-10",
+    "category": "code_generation",
+    "question": "Code Q10: Write Python to list Cloud Storage buckets in project P10.",
+    "reference_answer": "Use google.cloud.storage.Client(project='P10').list_buckets().",
+    "contexts": []
+  },
+  {
+    "id": "ana-01",
+    "category": "analytics",
+    "question": "Analytics Q1: How many docs have product_area = 'Compute' in metadata?",
+    "reference_answer": "Expect a SELECT COUNT with filter product_area = 'Compute' (case 1).",
+    "contexts": []
+  },
+  {
+    "id": "ana-02",
+    "category": "analytics",
+    "question": "Analytics Q2: How many docs have product_area = 'Compute' in metadata?",
+    "reference_answer": "Expect a SELECT COUNT with filter product_area = 'Compute' (case 2).",
+    "contexts": []
+  },
+  {
+    "id": "ana-03",
+    "category": "analytics",
+    "question": "Analytics Q3: How many docs have product_area = 'Compute' in metadata?",
+    "reference_answer": "Expect a SELECT COUNT with filter product_area = 'Compute' (case 3).",
+    "contexts": []
+  },
+  {
+    "id": "ana-04",
+    "category": "analytics",
+    "question": "Analytics Q4: How many docs have product_area = 'Compute' in metadata?",
+    "reference_answer": "Expect a SELECT COUNT with filter product_area = 'Compute' (case 4).",
+    "contexts": []
+  },
+  {
+    "id": "ana-05",
+    "category": "analytics",
+    "question": "Analytics Q5: How many docs have product_area = 'Compute' in metadata?",
+    "reference_answer": "Expect a SELECT COUNT with filter product_area = 'Compute' (case 5).",
+    "contexts": []
+  },
+  {
+    "id": "ana-06",
+    "category": "analytics",
+    "question": "Analytics Q6: How many docs have product_area = 'Compute' in metadata?",
+    "reference_answer": "Expect a SELECT COUNT with filter product_area = 'Compute' (case 6).",
+    "contexts": []
+  },
+  {
+    "id": "ana-07",
+    "category": "analytics",
+    "question": "Analytics Q7: How many docs have product_area = 'Compute' in metadata?",
+    "reference_answer": "Expect a SELECT COUNT with filter product_area = 'Compute' (case 7).",
+    "contexts": []
+  },
+  {
+    "id": "ana-08",
+    "category": "analytics",
+    "question": "Analytics Q8: How many docs have product_area = 'Compute' in metadata?",
+    "reference_answer": "Expect a SELECT COUNT with filter product_area = 'Compute' (case 8).",
+    "contexts": []
+  },
+  {
+    "id": "ana-09",
+    "category": "analytics",
+    "question": "Analytics Q9: How many docs have product_area = 'Compute' in metadata?",
+    "reference_answer": "Expect a SELECT COUNT with filter product_area = 'Compute' (case 9).",
+    "contexts": []
+  },
+  {
+    "id": "ana-10",
+    "category": "analytics",
+    "question": "Analytics Q10: How many docs have product_area = 'Compute' in metadata?",
+    "reference_answer": "Expect a SELECT COUNT with filter product_area = 'Compute' (case 10).",
+    "contexts": []
+  }
+]
