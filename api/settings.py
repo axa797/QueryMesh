@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -48,6 +49,10 @@ class Settings(BaseSettings):
     langfuse_public_key: str | None = None
     langfuse_secret_key: str | None = None
     langfuse_host: str | None = None
+    langfuse_tracing_environment: str | None = Field(
+        default=None,
+        description="Langfuse trace environment tag (e.g. production).",
+    )
 
     # E2B / code execution (§6.3, §15.12) — optional locally
     e2b_api_key: str | None = None

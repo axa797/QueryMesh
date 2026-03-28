@@ -1,1 +1,1 @@
-"""Observability helpers (Langfuse, metrics stubs)."""
+"""Observability: Langfuse (instrumentation) and GCP metric naming stubs (gcp_monitoring)."""

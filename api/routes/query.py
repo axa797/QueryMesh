@@ -10,6 +10,7 @@ from memory.longterm import compact_to_token_budget, load_top_k_memories
 from memory.redis_client import RedisDep
 from memory.session import get_session_factory
 from memory.session_envelope import resolve_session
+from observability.gcp_monitoring import record_http_request
 from observability.instrumentation import build_langgraph_invoke_config, flush_langfuse
 
 from api.deps import CurrentUserId
@@ -37,6 +38,7 @@ async def post_query(
     invoke_cfg, trace_id = build_langgraph_invoke_config(
         thread_id=thread_id,
         session_id=str(session_id),
+        user_id=str(user_id),
     )
     try:
         graph_out = await graph.ainvoke(
@@ -51,6 +53,12 @@ async def post_query(
         flush_langfuse()
 
     latency_ms = max(0, int((time.monotonic() - t0) * 1000))
+    record_http_request(
+        route="/query",
+        method="POST",
+        status_code=200,
+        latency_ms=latency_ms,
+    )
     return {
         "response": {
             "status": "ok",

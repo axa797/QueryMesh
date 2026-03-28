@@ -1,4 +1,4 @@
-"""Langfuse tracing setup for LangGraph (spec §5 instrumentation, §11 Phase 13)."""
+"""Langfuse tracing setup for LangGraph (spec §5 instrumentation, §11 Phase 13+)."""
 
 from __future__ import annotations
 
@@ -22,10 +22,12 @@ def langfuse_enabled() -> bool:
 def _ensure_client() -> None:
     """Register singleton so ``CallbackHandler``'s ``get_client`` is authenticated."""
     s = get_settings()
+    env = (s.langfuse_tracing_environment or "").strip() or None
     Langfuse(
         public_key=s.langfuse_public_key,
         secret_key=s.langfuse_secret_key,
         host=s.langfuse_host,
+        environment=env,
     )
 
 
@@ -33,6 +35,7 @@ def build_langgraph_invoke_config(
     *,
     thread_id: str,
     session_id: str,
+    user_id: str | None = None,
 ) -> tuple[dict[str, Any], str]:
     """
     LangGraph config for ``ainvoke`` including optional Langfuse callbacks.
@@ -41,12 +44,15 @@ def build_langgraph_invoke_config(
     (Langfuse also records nested spans for each node / LLM).
     """
     trace_id = uuid.uuid4().hex
+    meta: dict[str, Any] = {
+        "langfuse_session_id": session_id,
+        "thread_id": thread_id,
+    }
+    if user_id:
+        meta["user_id"] = user_id
     base: dict[str, Any] = {
         "configurable": {"thread_id": thread_id},
-        "metadata": {
-            "langfuse_session_id": session_id,
-            "thread_id": thread_id,
-        },
+        "metadata": meta,
     }
     if not langfuse_enabled():
         return base, trace_id
