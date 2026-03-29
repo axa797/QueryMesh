@@ -1,4 +1,4 @@
-# Local backing services only. Run API / tests in Docker once Dockerfile targets exist.
+# Local backing services only. API image: infra/Dockerfile; see infra/README.md for Cloud Run.
 # Usage: docker compose -f infra/docker-compose.yml up -d
 services:
   qdrant:

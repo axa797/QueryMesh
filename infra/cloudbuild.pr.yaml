@@ -1,0 +1,20 @@
+# PR-style build: unit tests only (matches default ``pytest`` markers).
+# Trigger: connect repo and use this config path for pull requests, or run:
+#   gcloud builds submit --config infra/cloudbuild.pr.yaml
+#
+steps:
+  - name: python:3.12-slim-bookworm
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        pip install --no-cache-dir uv
+        cd /workspace
+        uv sync --frozen
+        uv run pytest -q -m "not integration and not eval"
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: 1200s

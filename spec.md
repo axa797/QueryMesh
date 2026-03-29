@@ -162,9 +162,11 @@ querymesh/
 ├── observability/
 │   └── instrumentation.py    # Langfuse tracing setup (hosted endpoint)
 ├── infra/
-│   ├── Dockerfile            # API container
-│   ├── cloudbuild.yaml       # Cloud Build CI/CD config (tests on PR via triggers optional)
-│   └── docker-compose.yml    # Local dev (Qdrant + Redis; Langfuse optional if using SaaS)
+│   ├── Dockerfile             # API container
+│   ├── cloudbuild.yaml        # Build + push + Cloud Run deploy (main)
+│   ├── cloudbuild.pr.yaml     # PR / fast pytest
+│   ├── README.md              # Deploy, secrets, Qdrant notes
+│   └── docker-compose.yml     # Local dev (Qdrant + Redis + Postgres)
 └── docs/
     └── architecture.md       # Architecture diagram + decisions
 ```
@@ -605,16 +607,19 @@ Every LangGraph node emits:
 
 ### Cloud Build Pipeline
 
+Source of truth: [infra/cloudbuild.yaml](infra/cloudbuild.yaml) (image push to **Artifact Registry** + `gcloud run deploy` in **us-central1**), [infra/cloudbuild.pr.yaml](infra/cloudbuild.pr.yaml) (PR unit tests). See [infra/README.md](infra/README.md) for Secret Manager names and IAM.
+
 ```yaml
+# Illustrative shape; use repo file for exact flags/substitutions.
 steps:
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'gcr.io/$PROJECT_ID/api', '.']
+    args: ['build', '-f', 'infra/Dockerfile', '-t', '$_REGION-docker.pkg.dev/$PROJECT_ID/querymesh/api:$BUILD_ID', '.']
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/$PROJECT_ID/api']
+    args: ['push', '$_REGION-docker.pkg.dev/$PROJECT_ID/querymesh/api:$BUILD_ID']
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-    args: ['run', 'deploy', 'api', '--image', 'gcr.io/$PROJECT_ID/api', '--region', 'us-central1']
-triggers:
-  - push to main branch
+    entrypoint: 'gcloud'
+    args: ['run', 'deploy', 'api', '--image', '...', '--region', 'us-central1']
+# triggers: push to main → cloudbuild.yaml; PR → cloudbuild.pr.yaml
 ```
 
 **PR triggers:** Run automated tests on PR (configure Cloud Build or GitHub Actions per repo preference).

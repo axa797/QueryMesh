@@ -1,0 +1,55 @@
+# Build, push to Artifact Registry, deploy to Cloud Run (us-central1).
+#
+# Prereqs:
+#   gcloud artifacts repositories create ${_AR_REPO} \
+#     --repository-format=docker --location=${_REGION} --description=querymesh
+#
+# Submit (tags image with BUILD_ID):
+#   gcloud builds submit --config infra/cloudbuild.yaml
+#
+# Override deploy flags (space-separated gcloud args), e.g. extra secrets:
+#   gcloud builds submit --config infra/cloudbuild.yaml \
+#     --substitutions=_EXTRA_DEPLOY_ARGS="--set-secrets=DATABASE_URL=DATABASE_URL:latest"
+#
+substitutions:
+  _REGION: us-central1
+  _AR_REPO: querymesh
+  _SERVICE: api
+  _EXTRA_DEPLOY_ARGS: ""
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - infra/Dockerfile
+      - -t
+      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_SERVICE}:${BUILD_ID}
+      - .
+
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_SERVICE}:${BUILD_ID}
+
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        IMG="${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_SERVICE}:${BUILD_ID}"
+        gcloud run deploy ${_SERVICE} \
+          --image "$$IMG" \
+          --region ${_REGION} \
+          --platform managed \
+          --cpu 2 \
+          --memory 4Gi \
+          --min-instances 0 \
+          --max-instances 10 \
+          --port 8080 \
+          --allow-unauthenticated \
+          --set-secrets=API_KEY_PEPPER=API_KEY_PEPPER:latest,E2B_API_KEY=E2B_API_KEY:latest ${_EXTRA_DEPLOY_ARGS}
