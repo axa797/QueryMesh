@@ -10,6 +10,7 @@ from api.deps import get_current_user_internal_id
 from api.main import app
 from fastapi.testclient import TestClient
 from memory.redis_client import redis_dependency
+from memory.session_envelope import thread_id_for
 
 
 class DictRedis:
@@ -124,7 +125,9 @@ def test_unknown_session_403(
         headers={"Authorization": "Bearer x"},
     )
     assert r.status_code == 403
-    assert r.json()["error"] == "invalid_session"
+    data = r.json()
+    assert data["error"] == "invalid_session"
+    assert data["message"] == "Session is unknown or does not belong to this API key."
 
 
 def test_malformed_session_id_403(
@@ -167,3 +170,55 @@ def test_other_users_session_403(
         assert r2.json()["error"] == "invalid_session"
     finally:
         app.dependency_overrides[get_current_user_internal_id] = original_user
+
+
+def test_langgraph_config_thread_id_matches_spec(
+    fixed_user_id: uuid.UUID,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Gate (a): thread_id passed to LangGraph is user_internal_id:session_id (spec §7)."""
+    captured: dict = {}
+
+    async def fake_load_top_k(*_a, **_kw):
+        return []
+
+    class FakeGraph:
+        async def ainvoke(self, _state, config=None):
+            captured["config"] = config
+            return {
+                "echo_reply": None,
+                "orchestrator": None,
+                "retrieval_hits": None,
+                "analytics_structured": None,
+                "code_structured": None,
+                "rag_structured": None,
+                "synthesis": None,
+            }
+
+    async def fake_get_graph():
+        return FakeGraph()
+
+    fake_redis = DictRedis()
+
+    monkeypatch.setattr("api.routes.query.load_top_k_memories", fake_load_top_k)
+    monkeypatch.setattr("api.routes.query.get_compiled_query_graph", fake_get_graph)
+
+    async def user_override() -> uuid.UUID:
+        return fixed_user_id
+
+    async def redis_override():
+        return fake_redis
+
+    app.dependency_overrides[get_current_user_internal_id] = user_override
+    app.dependency_overrides[redis_dependency] = redis_override
+    try:
+        with TestClient(app) as client:
+            r = client.post("/query", json={"query": "hi"}, headers={"Authorization": "Bearer x"})
+            assert r.status_code == 200
+        sid = uuid.UUID(r.json()["session_id"])
+        expected_tid = thread_id_for(fixed_user_id, sid)
+        cfg = captured.get("config") or {}
+        assert cfg.get("configurable", {}).get("thread_id") == expected_tid
+        assert cfg.get("metadata", {}).get("thread_id") == expected_tid
+    finally:
+        app.dependency_overrides.clear()
