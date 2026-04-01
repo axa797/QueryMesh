@@ -36,6 +36,10 @@ class Settings(BaseSettings):
 
     # §4 feature flag — prod on, local off
     rag_vertex_rerank: bool = False
+    # When rerank on: retrieve at least this many dense hits before semantic rank → top_k
+    rag_rerank_candidate_limit: int = 20
+    # Discovery Engine Rank API model (spec §6.2; requires Discovery Engine API enabled)
+    vertex_ranking_model: str = "semantic-ranker-fast-004"
 
     # BigQuery (§6.4; seed with scripts/bootstrap_bq.py)
     bigquery_project_id: str | None = None
