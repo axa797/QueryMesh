@@ -73,7 +73,7 @@ For **Vertex AI**, confirm the location your app passes (env or code), e.g. `GOO
 2. After meaningful progress, update **PROGRESS.md** (check boxes, **Current focus**, **Notes**, or checkpoint table).
 3. Prefer small, reviewable commits on `**main`**; match existing layout and tooling.
 4. When behavior or API is ambiguous, **cite `spec.md` section** in commit messages or notes rather than inventing requirements.
-5. **CI:** none until there is a GitHub remote; add GitHub Actions when you push.
+5. **CI:** [.github/workflows/ci.yml](.github/workflows/ci.yml) runs Ruff + fast `pytest` on push/PR when using GitHub; Cloud Build [infra/cloudbuild.pr.yaml](infra/cloudbuild.pr.yaml) remains the GCP PR path.
 
 ## Files agents should touch
 

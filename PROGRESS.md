@@ -8,7 +8,7 @@ Update this file when starting or finishing a phase (short note under the item i
 
 ## Current focus
 
-- **§15 checklist** — All listed phases implemented; extend via issues/spec revisions.
+- **Phase 2** (see [spec_phase2.md](spec_phase2.md)): CI on PR; gate (a) closed; Vertex semantic rerank (`RAG_VERTEX_RERANK`); next: persisted ingest jobs, demo UI/CLI, ops metrics.
 
 ## Phase checklist (§15)
 
@@ -38,23 +38,32 @@ From spec: **(a)** auth + session tests green before agents; **(b)** RAG path pr
 
 | Gate                                | Status |
 | ----------------------------------- | ------ |
-| (a) Auth + session                  | ☐      |
+| (a) Auth + session                  | ☑      |
 | (b) RAG traces before prod rerank   | ☑      |
 | (c) Repeatable BQ bootstrap         | ☑      |
 | (d) E2B pinned + timeout regression | ☑      |
 
 
+## Phase 2 (spec_phase2)
+
+- **CI:** [.github/workflows/ci.yml](.github/workflows/ci.yml) — `ruff check`, `ruff format --check`, fast `pytest` on push/PR; stub `DATABASE_URL` / `API_KEY_PEPPER` / `REDIS_URL` / `RATE_LIMIT_STORAGE_URI=memory://` for imports.
+- **Gate (a):** Session + stable 403 JSON + `thread_id` on LangGraph config — [tests/test_session_unit.py](tests/test_session_unit.py).
+- **RAG rerank:** `RAG_VERTEX_RERANK` calls Discovery Engine `RankService` (`google-cloud-discoveryengine`); prefetch `RAG_RERANK_CANDIDATE_LIMIT` (default 20, cap 50); model `VERTEX_RANKING_MODEL` (default `semantic-ranker-fast-004`); enable **Discovery Engine API** on the GCP project; [tests/test_retrieval_rerank_unit.py](tests/test_retrieval_rerank_unit.py).
+
+---
+
 ## Notes
 
 *Use for decisions, blockers, or links to PRs. Newest first.*
 
-- Scaffold choices: Python **3.12**, **uv** + pyproject, **Ruff** only, **ADC only** (no SA JSON), **BIGQUERY_DATASET=querymesh**, local **Postgres** user/db **postgres** / **querymesh**, **Langfuse** env empty until §15.16, proprietary **LICENSE**, **no CI** until GitHub remote.
+- **Phase 2 start:** CI + gate (a) + Vertex rerank wiring per [spec_phase2.md](spec_phase2.md).
+- Scaffold choices: Python **3.12**, **uv** + pyproject, **Ruff** only, **ADC only** (no SA JSON), **BIGQUERY_DATASET=querymesh**, local **Postgres** user/db **postgres** / **querymesh**, **Langfuse** env empty until §15.16, proprietary **LICENSE**; **GitHub Actions** CI for lint + fast tests ([.github/workflows/ci.yml](.github/workflows/ci.yml)); Cloud Build deploy unchanged.
 - **Phase 3:** Alembic at repo root; LangGraph DDL aligned with `langgraph-checkpoint-postgres==3.0.5` `MIGRATIONS[0:11]`; non-CONCURRENT indexes for transactional migration.
 - **Phase 4:** Bearer auth, `pydantic-settings`, async pool + session scope, `scripts/mint_api_key.py`, `POST /query` stub; 401 JSON matches spec shape pattern.
 - **Phase 5:** Redis session envelope (24h TTL), `session_id` / `thread_id` for LangGraph, 403 stable JSON; settings require `REDIS_URL`.
 - **Phase 6:** [memory/longterm.py](memory/longterm.py) Postgres read policy + compaction; `/query` loads memory before stub orchestrator; session unit tests monkeypatch DB load to avoid TestClient/asyncpg loop issues.
 - **Phase 7:** [graph/pipeline.py](graph/pipeline.py) + [memory/checkpointer.py](memory/checkpointer.py) — LangGraph `StateGraph`, Postgres `AsyncPostgresSaver`, `thread_id` threading; unit tests use `MemorySaver`.
-- **Phase 8:** Ingestion (`ingestion/`*), Vertex `text-embedding-004`, Qdrant upsert CLI ([ingestion/indexer.py](ingestion/indexer.py)), [tools/retrieval_tool.py](tools/retrieval_tool.py), graph `**retrieve`** node; `retrieval_hits` on `/query`; `RAG_VERTEX_RERANK` log-only stub.
+- **Phase 8:** Ingestion (`ingestion/`*), Vertex `text-embedding-004`, Qdrant upsert CLI ([ingestion/indexer.py](ingestion/indexer.py)), [tools/retrieval_tool.py](tools/retrieval_tool.py), graph `**retrieve`** node; `retrieval_hits` on `/query`; Phase 2: `RAG_VERTEX_RERANK` → Discovery Engine ranker (see Phase 2 section).
 - **Phase 9:** [agents/orchestrator.py](agents/orchestrator.py) — Gemini routing + fallbacks; graph node `orchestrator`; `orchestrator.source` metadata on `/query`.
 - **Phase 10:** RAG JSON ([agents/rag_agent.py](agents/rag_agent.py)), synthesizer ([agents/synthesizer.py](agents/synthesizer.py)), [tools/memory_tool.py](tools/memory_tool.py); graph nodes `rag_structured`, `synthesizer`; shared [agents/vertex.py](agents/vertex.py), [agents/jsonutil.py](agents/jsonutil.py).
 - **Phase 11:** BigQuery bootstrap + IAM notes in [scripts/README.md](scripts/README.md); [agents/analytics_agent.py](agents/analytics_agent.py) + [tools/bigquery_tool.py](tools/bigquery_tool.py); graph `**analytics`** after `**retrieve`** when intent; Ruff + pytest green.
@@ -65,3 +74,4 @@ From spec: **(a)** auth + session tests green before agents; **(b)** RAG path pr
 - **Phase 16:** `user_id` on Langfuse graph metadata; `langfuse_tracing_environment`; [observability/gcp_monitoring.py](observability/gcp_monitoring.py) Cloud Monitoring naming + alert constants (export stub); `/query` debug metric log hook.
 - **Phase 17:** [evals/](evals/) golden JSON + RAGAS / DeepEval runners; `eval` pytest marker; fast [tests/test_golden_loader_unit.py](tests/test_golden_loader_unit.py).
 - **Phase 18:** [infra/Dockerfile](infra/Dockerfile) API image (`uv`, non-root); [infra/cloudbuild.yaml](infra/cloudbuild.yaml) / [infra/cloudbuild.pr.yaml](infra/cloudbuild.pr.yaml); [infra/README.md](infra/README.md) Secret Manager + deploy; `.dockerignore`.
+

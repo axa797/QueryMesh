@@ -36,7 +36,9 @@
 
 3. **Runtime service account** (default Cloud Run SA or a custom SA) needs **`roles/secretmanager.secretAccessor`** on each secret.
 
-4. **Cloud Build SA** (`PROJECT_NUMBER@cloudbuild.gserviceaccount.com`) needs at least:
+4. **RAG rerank (Phase 2):** If `RAG_VERTEX_RERANK=true`, enable the **[Discovery Engine API](https://cloud.google.com/generative-ai-app-builder/docs/ranking)** on the GCP project so the semantic ranker can run (see [PROGRESS.md](../PROGRESS.md) Phase 2 notes).
+
+5. **Cloud Build SA** (`PROJECT_NUMBER@cloudbuild.gserviceaccount.com`) needs at least:
 
    - `roles/artifactregistry.writer`
    - `roles/run.admin`
