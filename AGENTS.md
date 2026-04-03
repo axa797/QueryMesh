@@ -66,6 +66,7 @@ For **Vertex AI**, confirm the location your app passes (env or code), e.g. `GOO
 ## Git workflow
 
 - **Solo development:** commit directly to `**main`**. Do not create feature branches (including `cursor/`*) unless the user explicitly asks for one.
+- **Commit cadence:** After `ruff check`, `ruff format --check`, and fast `pytest` are green, commit in **small logical steps** (docs vs CI vs tests vs feature vs follow-up docs). New behavior should include **tests** before the feature commit when practical.
 
 ## How to work in this repo
 
