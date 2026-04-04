@@ -17,6 +17,6 @@ class IngestStartResponse(BaseModel):
 
 
 class IngestStatusResponse(BaseModel):
-    status: Literal["running", "complete", "failed"]
+    status: Literal["queued", "running", "complete", "failed"]
     docs_indexed: int
     error: str | None = None

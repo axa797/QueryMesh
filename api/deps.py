@@ -10,6 +10,8 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from memory.session import get_session_factory
 
 from api.auth import lookup_user_for_api_key
+from api.ingestion_job_protocol import IngestionJobRepository
+from api.ingestion_job_store import PostgresIngestionJobRepository
 from api.settings import get_settings
 
 http_bearer = HTTPBearer(auto_error=False)
@@ -46,3 +48,21 @@ async def get_current_user_internal_id(
 
 
 CurrentUserId = Annotated[UUID, Depends(get_current_user_internal_id)]
+
+_postgres_ingestion_repo = PostgresIngestionJobRepository()
+_ingestion_repo_override: IngestionJobRepository | None = None
+
+
+def get_ingestion_job_repository() -> IngestionJobRepository:
+    if _ingestion_repo_override is not None:
+        return _ingestion_repo_override
+    return _postgres_ingestion_repo
+
+
+def set_ingestion_job_repository_for_tests(repo: IngestionJobRepository | None) -> None:
+    """Point ingestion at an in-memory store in unit tests."""
+    global _ingestion_repo_override
+    _ingestion_repo_override = repo
+
+
+IngestionJobRepo = Annotated[IngestionJobRepository, Depends(get_ingestion_job_repository)]

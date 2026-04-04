@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 
-from api import ingestion_jobs
-from api.deps import CurrentUserId
-from api.ingestion_runner import run_ingestion_job
+from api.deps import CurrentUserId, IngestionJobRepo
+from api.ingestion_schedule import schedule_ingestion_job
 from api.schemas.ingest import IngestRequest, IngestStartResponse, IngestStatusResponse
 
 router = APIRouter(tags=["ingest"])
@@ -14,22 +13,24 @@ router = APIRouter(tags=["ingest"])
 
 @router.post("/ingest", response_model=IngestStartResponse)
 async def post_ingest(
-    _user_id: CurrentUserId,
+    user_id: CurrentUserId,
     body: IngestRequest,
     background_tasks: BackgroundTasks,
+    repo: IngestionJobRepo,
 ) -> IngestStartResponse:
-    """Start embedding/indexing in the background (local: ``BackgroundTasks``)."""
-    job_id = ingestion_jobs.job_create()
-    background_tasks.add_task(run_ingestion_job, job_id, body.source)
+    """Start embedding/indexing in the background (in-process ``BackgroundTasks``)."""
+    job_id = await repo.create_job(user_id=user_id, source=body.source)
+    schedule_ingestion_job(background_tasks, job_id, body.source)
     return IngestStartResponse(job_id=job_id)
 
 
 @router.get("/ingest/{job_id}", response_model=IngestStatusResponse)
 async def get_ingest_status(
     job_id: str,
-    _user_id: CurrentUserId,
+    user_id: CurrentUserId,
+    repo: IngestionJobRepo,
 ) -> IngestStatusResponse:
-    row = ingestion_jobs.job_view(job_id)
+    row = await repo.get_job_for_user(job_id=job_id, user_id=user_id)
     if row is None:
         raise HTTPException(
             status_code=404,
@@ -39,7 +40,7 @@ async def get_ingest_status(
             },
         )
     st = row["status"]
-    if st not in ("running", "complete", "failed"):
+    if st not in ("queued", "running", "complete", "failed"):
         st = "failed"
     return IngestStatusResponse(
         status=st,
