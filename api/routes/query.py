@@ -12,6 +12,8 @@ from memory.session import get_session_factory
 from memory.session_envelope import resolve_session
 from observability.gcp_monitoring import record_http_request
 from observability.instrumentation import build_langgraph_invoke_config, flush_langfuse
+from observability.query_intent import intent_bucket_from_graph_out
+from observability.query_request_log import log_query_request
 
 from api.deps import CurrentUserId
 from api.schemas.query import QueryRequest
@@ -27,20 +29,28 @@ async def post_query(
 ) -> dict:
     """Spec §8. Session → long-term memory → LangGraph (§7) before full multi-agent."""
     t0 = time.monotonic()
-    session_id, thread_id = await resolve_session(redis, user_id, body.session_id)
+    http_status = 500
+    intent_bucket = "unknown"
+    graph_out: dict = {}
+    trace_id = ""
+    session_id_str = ""
+    memory_compact = ""
 
-    factory = get_session_factory()
-    async with factory() as db:
-        rows = await load_top_k_memories(db, user_id)
-    memory_compact = compact_to_token_budget(rows)
-
-    graph = await get_compiled_query_graph()
-    invoke_cfg, trace_id = build_langgraph_invoke_config(
-        thread_id=thread_id,
-        session_id=str(session_id),
-        user_id=str(user_id),
-    )
     try:
+        session_id, thread_id = await resolve_session(redis, user_id, body.session_id)
+        session_id_str = str(session_id)
+
+        factory = get_session_factory()
+        async with factory() as db:
+            rows = await load_top_k_memories(db, user_id)
+        memory_compact = compact_to_token_budget(rows)
+
+        graph = await get_compiled_query_graph()
+        invoke_cfg, trace_id = build_langgraph_invoke_config(
+            thread_id=thread_id,
+            session_id=session_id_str,
+            user_id=str(user_id),
+        )
         graph_out = await graph.ainvoke(
             {
                 "user_id": str(user_id),
@@ -49,14 +59,33 @@ async def post_query(
             },
             config=invoke_cfg,
         )
+        intent_bucket = intent_bucket_from_graph_out(graph_out)
+        http_status = 200
+    except Exception:
+        latency_ms = max(0, int((time.monotonic() - t0) * 1000))
+        log_query_request(
+            route="/query",
+            method="POST",
+            http_status=500,
+            latency_ms=latency_ms,
+            intent_bucket="error",
+        )
+        raise
     finally:
         flush_langfuse()
 
     latency_ms = max(0, int((time.monotonic() - t0) * 1000))
+    log_query_request(
+        route="/query",
+        method="POST",
+        http_status=http_status,
+        latency_ms=latency_ms,
+        intent_bucket=intent_bucket,
+    )
     record_http_request(
         route="/query",
         method="POST",
-        status_code=200,
+        status_code=http_status,
         latency_ms=latency_ms,
     )
     return {
@@ -73,5 +102,5 @@ async def post_query(
         },
         "trace_id": trace_id,
         "latency_ms": latency_ms,
-        "session_id": str(session_id),
+        "session_id": session_id_str,
     }

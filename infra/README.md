@@ -59,12 +59,44 @@ gcloud builds submit --config infra/cloudbuild.yaml \
   --substitutions=_EXTRA_DEPLOY_ARGS="--set-secrets=DATABASE_URL=DATABASE_URL:latest,REDIS_URL=REDIS_URL:latest,QDRANT_URL=QDRANT_URL:latest"
 ```
 
-Run **Alembic** before or after first deploy (Cloud SQL / Postgres reachable from Cloud Run):
+Run **Alembic** before or after first deploy (Cloud SQL / Postgres reachable from Cloud Run). Phase 2 adds table **`ingestion_jobs`** (revision `002_ingestion_jobs`):
 
 ```bash
 # From your laptop or a Cloud Shell job, with DATABASE_URL pointing at the same DB:
 uv run alembic upgrade head
 ```
+
+### `/query` structured logs (Phase 2)
+
+The API writes **one JSON object per line to stdout** after each `POST /query` completes (Cloud Run picks this up as structured logs when JSON detection applies):
+
+| Field           | Description                                      |
+| --------------- | ------------------------------------------------ |
+| `message_type`  | Always `querymesh_query`                         |
+| `route`         | e.g. `/query`                                    |
+| `method`        | `POST`                                           |
+| `http_status`   | `200` on success, `500` logged before raise      |
+| `latency_ms`    | Wall time for the handler                        |
+| `intent_bucket` | Comma-sorted orchestrator intents or `unknown`   |
+
+Configure Cloud Logging to retain these lines, then create **log-based metrics**. Example **Monitoring Query Language** (MQL) sketch once you define a metric from the `latency_ms` field (names are illustrative):
+
+```text
+fetch generic_task
+| { metric: 'logging.googleapis.com/user/querymesh_query_latency' }
+| filter metric.http_status == 200
+| group_by 1m, [value_latency_ms_p95: percentile(value.latency_ms, 95)]
+| every 1m
+```
+
+Create the log-based metric in Cloud Console using a filter such as:
+
+```text
+jsonPayload.message_type="querymesh_query"
+resource.type="cloud_run_revision"
+```
+
+If your runtime wraps JSON inside `textPayload`, use a **regular expression** extractor on `textPayload` for `"message_type":"querymesh_query"`, then extract numeric `latency_ms`. See [Create log-based metrics](https://cloud.google.com/logging/docs/logs-based-metrics). Use alert policies on `http_status=500` and latency thresholds.
 
 ### Qdrant on Cloud Run (optional)
 
