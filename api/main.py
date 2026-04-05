@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exception_handlers import http_exception_handler
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from graph.pipeline import dispose_compiled_query_graph
 from memory.checkpointer import dispose_checkpoint_pool
@@ -36,6 +37,22 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(title="querymesh", version="0.1.0", lifespan=lifespan)
 
 
+def _configure_cors(application: FastAPI) -> None:
+    raw = (get_settings().cors_allow_origins or "").strip()
+    if not raw:
+        return
+    origins = ["*"] if raw == "*" else [o.strip() for o in raw.split(",") if o.strip()]
+    if not origins:
+        return
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type"],
+    )
+
+
 @app.exception_handler(HTTPException)
 async def stable_json_errors(request, exc: HTTPException):
     detail = exc.detail
@@ -63,6 +80,7 @@ def rate_limit_exceeded_json(request: Request, exc: RateLimitExceeded):
 
 app.state.limiter = limiter
 app.add_middleware(SlowAPIMiddleware)
+_configure_cors(app)
 app.include_router(query_routes.router)
 app.include_router(ingest_routes.router)
 

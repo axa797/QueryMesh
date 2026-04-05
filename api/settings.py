@@ -58,6 +58,12 @@ class Settings(BaseSettings):
         description="Langfuse trace environment tag (e.g. production).",
     )
 
+    # Optional CORS (e.g. open demo HTML from file:// or another dev port)
+    cors_allow_origins: str | None = Field(
+        default=None,
+        description="Comma-separated origins, or * for any (demo/local only).",
+    )
+
     # E2B / code execution (§6.3, §15.12) — optional locally
     e2b_api_key: str | None = None
     e2b_template_id: str = "querymesh-code"
