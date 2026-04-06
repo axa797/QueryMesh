@@ -166,7 +166,7 @@ For Phase 2 feature work, prefer commands run **inside** the dev container or `d
 
 | This doc           | Touches (examples)                                                                                                               |
 | ------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
-| ingest persistence | [api/routes/ingest.py](api/routes/ingest.py), [api/ingestion_jobs.py](api/ingestion_jobs.py), [infra/README.md](infra/README.md) |
+| ingest persistence | [api/routes/ingest.py](api/routes/ingest.py), [api/ingestion_job_store.py](api/ingestion_job_store.py), [infra/README.md](infra/README.md) |
 | rerank             | [tools/retrieval_tool.py](tools/retrieval_tool.py), [api/settings.py](api/settings.py)                                           |
 | gates / CI         | [tests/](tests/), [.github/workflows/](.github/workflows/) (new)                                                                 |
 | demo               | new `demo/` or `clients/` subtree (TBD)                                                                                          |

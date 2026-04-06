@@ -12,3 +12,6 @@ build/
 .idea/
 .vscode/
 .DS_Store
+
+# Local GCP documentation PDFs (Phase 2 corpus; not committed)
+corpus/

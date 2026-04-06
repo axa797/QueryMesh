@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>querymesh demo</title>
+  <style>
+    :root { font-family: system-ui, sans-serif; max-width: 52rem; margin: 1.5rem auto; padding: 0 1rem; }
+    textarea { width: 100%; min-height: 5rem; box-sizing: border-box; }
+    pre { background: #f4f4f5; padding: 0.75rem; overflow: auto; border-radius: 6px; font-size: 0.85rem; }
+    button { padding: 0.45rem 1rem; cursor: pointer; }
+    .hint { color: #666; font-size: 0.9rem; }
+    .err { color: #b42318; }
+  </style>
+</head>
+<body>
+  <h1>querymesh demo</h1>
+  <p class="hint">
+    Set <code>BASE_URL</code> and <code>API_KEY</code> below. For browser CORS, run the API with
+    <code>CORS_ALLOW_ORIGINS=*</code> (see <code>.env.example</code>) or open this file via
+    <code>python -m http.server</code> in <code>demo/</code> and allow that origin.
+  </p>
+
+  <script>
+    /* Configure these before use */
+    const BASE_URL = "http://127.0.0.1:8000";
+    const API_KEY = "replace-with-your-api-key";
+  </script>
+
+  <label for="q">Query</label>
+  <textarea id="q" placeholder="Ask about GCP…"></textarea>
+  <p>
+    <button type="button" id="send">Send</button>
+    <span id="status" class="hint"></span>
+  </p>
+  <h2>Assistant</h2>
+  <pre id="message">—</pre>
+  <h2>Meta</h2>
+  <pre id="meta">—</pre>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    let sessionId = sessionStorage.getItem("querymesh_session_id") || "";
+
+    $("send").onclick = async () => {
+      const query = $("q").value.trim();
+      if (!query) {
+        $("status").textContent = "Enter a query.";
+        return;
+      }
+      if (!API_KEY || API_KEY === "replace-with-your-api-key") {
+        $("status").textContent = "Set API_KEY in this file.";
+        return;
+      }
+      $("status").textContent = "…";
+      $("message").textContent = "…";
+      $("meta").textContent = "…";
+      try {
+        const body = { query };
+        if (sessionId) body.session_id = sessionId;
+        const res = await fetch(BASE_URL.replace(/\/$/, "") + "/query", {
+          method: "POST",
+          headers: {
+            Authorization: "Bearer " + API_KEY,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(body),
+        });
+        const text = await res.text();
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch {
+          throw new Error("Non-JSON response: " + text.slice(0, 200));
+        }
+        if (!res.ok) {
+          throw new Error((data && data.message) || res.status + " " + res.statusText);
+        }
+        sessionId = data.session_id || sessionId;
+        if (data.session_id) sessionStorage.setItem("querymesh_session_id", data.session_id);
+        const synth = data.response && data.response.synthesis;
+        const msg =
+          (synth && typeof synth.message === "string" && synth.message) ||
+          (synth && typeof synth === "string" ? synth : null) ||
+          JSON.stringify(data.response, null, 2);
+        $("message").textContent = msg;
+        $("meta").textContent = JSON.stringify(
+          {
+            trace_id: data.trace_id,
+            session_id: data.session_id,
+            latency_ms: data.latency_ms,
+          },
+          null,
+          2,
+        );
+        $("status").textContent = "ok";
+      } catch (e) {
+        $("status").textContent = "";
+        $("message").innerHTML = '<span class="err">' + String(e.message || e) + "</span>";
+        $("meta").textContent = "—";
+      }
+    };
+  </script>
+</body>
+</html>

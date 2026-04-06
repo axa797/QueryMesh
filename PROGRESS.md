@@ -8,7 +8,7 @@ Update this file when starting or finishing a phase (short note under the item i
 
 ## Current focus
 
-- **Phase 2** (see [spec_phase2.md](spec_phase2.md)): CI on PR; gate (a) closed; Vertex semantic rerank (`RAG_VERTEX_RERANK`); next: persisted ingest jobs, demo UI/CLI, ops metrics.
+- **Phase 2** (see [spec_phase2.md](spec_phase2.md)): persisted **`ingestion_jobs`** (Postgres); structured **`/query`** stdout JSON logs; browser **[demo/querymesh-demo.html](demo/querymesh-demo.html)**; corpus path **`./corpus/gcp_docs`** (gitignored). Optional: **`RAG_VERTEX_RERANK`** + **`CORS_ALLOW_ORIGINS`**.
 
 ## Phase checklist (§15)
 
@@ -26,7 +26,7 @@ Update this file when starting or finishing a phase (short note under the item i
 - **12. Code agent + E2B** — Done: [e2b/Dockerfile](e2b/Dockerfile); [tools/code_exec_tool.py](tools/code_exec_tool.py) (15s wall, 64KiB combined output, concurrency 2, no egress); [agents/code_agent.py](agents/code_agent.py) (**only** E2B caller); graph `**code_generation`** after `**analytics`** when intent; `/query` includes `code_structured`; [scripts/README.md](scripts/README.md) E2B notes.
 - **13. Parallel fan-out & synthesis** — Done: [graph/pipeline.py](graph/pipeline.py) `**specialists`** node — analytics + code in parallel when orchestrator `parallel: true`; [observability/instrumentation.py](observability/instrumentation.py) — Langfuse `CallbackHandler` on graph `ainvoke`, `flush` after request, `trace_id` in API; `langfuse` + `langchain` deps.
 - **14. POST /query hard API** — Done: [api/rate_limit.py](api/rate_limit.py) slowapi `default_limits` + Redis (`RATE_LIMIT_STORAGE_URI` or `REDIS_URL`); per Bearer-hash key, IP fallback; limit enforced **before** auth via `SlowAPIMiddleware`; stable **429** JSON (`rate_limit_exceeded`); `/health` exempt; [tests/conftest.py](tests/conftest.py) `memory://` default for pytest; `QUERY_RATE_LIMIT` setting (`60/minute`).
-- **15. Ingestion API** — Done: [api/routes/ingest.py](api/routes/ingest.py) `POST /ingest` + `GET /ingest/{job_id}`; [api/ingestion_jobs.py](api/ingestion_jobs.py) in-memory job state; [api/ingestion_runner.py](api/ingestion_runner.py) + [ingestion/indexer.py](ingestion/indexer.py) `RunIndexResult`; settings `INGESTION_GCP_DOCS_DIR`, `INGESTION_RECREATE_COLLECTION`; [tests/test_ingest_api_unit.py](tests/test_ingest_api_unit.py).
+- **15. Ingestion API** — Done: [api/routes/ingest.py](api/routes/ingest.py) `POST /ingest` + `GET /ingest/{job_id}`; Phase 2: [api/ingestion_job_store.py](api/ingestion_job_store.py) + Alembic `ingestion_jobs`; [api/ingestion_runner.py](api/ingestion_runner.py) + [api/ingestion_schedule.py](api/ingestion_schedule.py) (`BackgroundTasks`); [ingestion/indexer.py](ingestion/indexer.py) `RunIndexResult`; settings `INGESTION_GCP_DOCS_DIR`, `INGESTION_RECREATE_COLLECTION`; [tests/test_ingest_api_unit.py](tests/test_ingest_api_unit.py).
 - **16. Observability & dashboards** — Done: [observability/gcp_monitoring.py](observability/gcp_monitoring.py) metric names + alert constants (stubs / log-based path); Langfuse `user_id` + `LANGFUSE_TRACING_ENVIRONMENT` on traces; [tests/test_gcp_monitoring_unit.py](tests/test_gcp_monitoring_unit.py).
 - **17. Eval harness** — Done: [evals/golden_dataset.json](evals/golden_dataset.json) (30 rows), [evals/golden_loader.py](evals/golden_loader.py), [evals/ragas_eval.py](evals/ragas_eval.py), [evals/test_deepeval_suite.py](evals/test_deepeval_suite.py); `eval` pytest marker excluded from default runs; `RUN_EVAL=1` + `uv sync --group eval` for LLM judges.
 - **18. Cloud Build & Run deploy** — Done: [infra/Dockerfile](infra/Dockerfile), [infra/cloudbuild.yaml](infra/cloudbuild.yaml) (Artifact Registry + Cloud Run **api** in **us-central1**), [infra/cloudbuild.pr.yaml](infra/cloudbuild.pr.yaml); [.dockerignore](.dockerignore); [infra/README.md](infra/README.md) (Secret Manager + IAM + Qdrant notes).
@@ -48,7 +48,8 @@ From spec: **(a)** auth + session tests green before agents; **(b)** RAG path pr
 
 - **CI:** [.github/workflows/ci.yml](.github/workflows/ci.yml) — `ruff check`, `ruff format --check`, fast `pytest` on push/PR; stub `DATABASE_URL` / `API_KEY_PEPPER` / `REDIS_URL` / `RATE_LIMIT_STORAGE_URI=memory://` for imports.
 - **Gate (a):** Session + stable 403 JSON + `thread_id` on LangGraph config — [tests/test_session_unit.py](tests/test_session_unit.py).
-- **RAG rerank:** `RAG_VERTEX_RERANK` calls Discovery Engine `RankService` (`google-cloud-discoveryengine`); prefetch `RAG_RERANK_CANDIDATE_LIMIT` (default 20, cap 50); model `VERTEX_RANKING_MODEL` (default `semantic-ranker-fast-004`); enable **Discovery Engine API** on the GCP project; [tests/test_retrieval_rerank_unit.py](tests/test_retrieval_rerank_unit.py).
+- **Persisted ingest:** `ingestion_jobs` table; in-process worker; [api/ingestion_schedule.py](api/ingestion_schedule.py) hook for future Cloud Run Job.
+- **Query logs:** [observability/query_request_log.py](observability/query_request_log.py) → stdout JSON; [infra/README.md](infra/README.md) log metric notes; [demo/querymesh-demo.html](demo/querymesh-demo.html).
 
 ---
 
@@ -56,7 +57,7 @@ From spec: **(a)** auth + session tests green before agents; **(b)** RAG path pr
 
 *Use for decisions, blockers, or links to PRs. Newest first.*
 
-- **Phase 2 start:** CI + gate (a) + Vertex rerank wiring per [spec_phase2.md](spec_phase2.md).
+- **Phase 2 ingest + observability + demo:** Postgres `ingestion_jobs`, `/query` structured JSON logs, static demo HTML, `corpus/` gitignore per [spec_phase2.md](spec_phase2.md).
 - Scaffold choices: Python **3.12**, **uv** + pyproject, **Ruff** only, **ADC only** (no SA JSON), **BIGQUERY_DATASET=querymesh**, local **Postgres** user/db **postgres** / **querymesh**, **Langfuse** env empty until §15.16, proprietary **LICENSE**; **GitHub Actions** CI for lint + fast tests ([.github/workflows/ci.yml](.github/workflows/ci.yml)); Cloud Build deploy unchanged.
 - **Phase 3:** Alembic at repo root; LangGraph DDL aligned with `langgraph-checkpoint-postgres==3.0.5` `MIGRATIONS[0:11]`; non-CONCURRENT indexes for transactional migration.
 - **Phase 4:** Bearer auth, `pydantic-settings`, async pool + session scope, `scripts/mint_api_key.py`, `POST /query` stub; 401 JSON matches spec shape pattern.
@@ -74,4 +75,3 @@ From spec: **(a)** auth + session tests green before agents; **(b)** RAG path pr
 - **Phase 16:** `user_id` on Langfuse graph metadata; `langfuse_tracing_environment`; [observability/gcp_monitoring.py](observability/gcp_monitoring.py) Cloud Monitoring naming + alert constants (export stub); `/query` debug metric log hook.
 - **Phase 17:** [evals/](evals/) golden JSON + RAGAS / DeepEval runners; `eval` pytest marker; fast [tests/test_golden_loader_unit.py](tests/test_golden_loader_unit.py).
 - **Phase 18:** [infra/Dockerfile](infra/Dockerfile) API image (`uv`, non-root); [infra/cloudbuild.yaml](infra/cloudbuild.yaml) / [infra/cloudbuild.pr.yaml](infra/cloudbuild.pr.yaml); [infra/README.md](infra/README.md) Secret Manager + deploy; `.dockerignore`.
-
