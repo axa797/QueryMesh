@@ -1,0 +1,27 @@
+# Manual validation for eval harness (no LLM / no secrets). Phase 2 spec_phase2 optional workflow_dispatch.
+
+name: Eval harness (validate only)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  golden-and-ragas-dry-run:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/querymesh
+      API_KEY_PEPPER: ci-test-pepper-not-for-production
+      REDIS_URL: redis://127.0.0.1:6379/0
+      RATE_LIMIT_STORAGE_URI: memory://
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: latest
+      - run: uv python install 3.12
+      - run: uv sync --frozen --group dev
+      - name: Golden loader + specialist profile tests
+        run: uv run pytest tests/test_golden_loader_unit.py tests/test_golden_specialist_profiles_unit.py -q
+      - run: uv sync --frozen --group eval
+      - name: RAGAS dry-run (no judge LLM)
+        run: uv run --group eval python -m evals.ragas_eval --dry-run
