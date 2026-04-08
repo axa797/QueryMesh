@@ -8,7 +8,7 @@ Update this file when starting or finishing a phase (short note under the item i
 
 ## Current focus
 
-- **Phase 2** (see [spec_phase2.md](spec_phase2.md)): persisted **`ingestion_jobs`** (Postgres); structured **`/query`** stdout JSON logs; browser **[demo/querymesh-demo.html](demo/querymesh-demo.html)**; corpus path **`./corpus/gcp_docs`** (gitignored). Optional: **`RAG_VERTEX_RERANK`** + **`CORS_ALLOW_ORIGINS`**.
+- **Phase 2** — Corpus runbook + golden specialist checks done (see [docs/corpus_runbook.md](docs/corpus_runbook.md)). **Next (optional):** Terraform / click-path dashboard for log-based metrics; reconcile `spec.md` §13 local dev with `uv`/Docker per [spec_phase2.md](spec_phase2.md).
 
 ## Phase checklist (§15)
 
@@ -50,7 +50,7 @@ From spec: **(a)** auth + session tests green before agents; **(b)** RAG path pr
 - **Gate (a):** Session + stable 403 JSON + `thread_id` on LangGraph config — [tests/test_session_unit.py](tests/test_session_unit.py).
 - **RAG rerank:** Discovery Engine `RankService` when `RAG_VERTEX_RERANK`; [tests/test_retrieval_rerank_unit.py](tests/test_retrieval_rerank_unit.py).
 - **Persisted ingest:** `ingestion_jobs` table; in-process worker; [api/ingestion_schedule.py](api/ingestion_schedule.py) hook for future Cloud Run Job.
-- **Query logs:** [observability/query_request_log.py](observability/query_request_log.py) → stdout JSON; [infra/README.md](infra/README.md) log metric notes; [demo/querymesh-demo.html](demo/querymesh-demo.html).
+- **Corpus / evals:** [docs/corpus_runbook.md](docs/corpus_runbook.md); [tests/test_golden_specialist_profiles_unit.py](tests/test_golden_specialist_profiles_unit.py); manual CI [.github/workflows/eval-manual.yml](.github/workflows/eval-manual.yml) (`workflow_dispatch`, RAGAS `--dry-run`).
 
 ---
 
@@ -58,7 +58,7 @@ From spec: **(a)** auth + session tests green before agents; **(b)** RAG path pr
 
 *Use for decisions, blockers, or links to PRs. Newest first.*
 
-- **Phase 2 ingest + observability + demo:** Postgres `ingestion_jobs`, `/query` structured JSON logs, static demo HTML, `corpus/` gitignore per [spec_phase2.md](spec_phase2.md).
+- **Corpus runbook (Phase 2):** [docs/corpus_runbook.md](docs/corpus_runbook.md), golden analytics/code profile tests, `workflow_dispatch` eval validation workflow.
 - Scaffold choices: Python **3.12**, **uv** + pyproject, **Ruff** only, **ADC only** (no SA JSON), **BIGQUERY_DATASET=querymesh**, local **Postgres** user/db **postgres** / **querymesh**, **Langfuse** env empty until §15.16, proprietary **LICENSE**; **GitHub Actions** CI for lint + fast tests ([.github/workflows/ci.yml](.github/workflows/ci.yml)); Cloud Build deploy unchanged.
 - **Phase 3:** Alembic at repo root; LangGraph DDL aligned with `langgraph-checkpoint-postgres==3.0.5` `MIGRATIONS[0:11]`; non-CONCURRENT indexes for transactional migration.
 - **Phase 4:** Bearer auth, `pydantic-settings`, async pool + session scope, `scripts/mint_api_key.py`, `POST /query` stub; 401 JSON matches spec shape pattern.

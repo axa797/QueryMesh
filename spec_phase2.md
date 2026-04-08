@@ -123,7 +123,7 @@ Recommended sequence to reduce thrash:
 4. **Ingestion persistence + prod job path** — Schema migration if Postgres-backed; worker contract.
 5. **Observability wiring** — Logs/metrics + README for dashboard.
 6. **Demo UI or CLI** — Polish enough for a external demo.
-7. **Corpus runbook** — Ingest at scale; snapshot eval numbers in PROGRESS or internal doc.
+7. **Corpus runbook** — Ingest at scale; snapshot eval numbers in PROGRESS or internal doc. **Done:** [docs/corpus_runbook.md](docs/corpus_runbook.md); golden specialist profile tests; [eval-manual](.github/workflows/eval-manual.yml) workflow.
 
 Dependencies: (3) may run in parallel with (2) after CI exists; (4) is orthogonal to (3) but should land before betting on prod demos.
 

@@ -16,6 +16,8 @@ curl -sS -X POST "http://localhost:8000/ingest" \
 # Poll: GET /ingest/{job_id} with the same Authorization header.
 ```
 
+**Corpus layout, PDF sourcing, and reindexing:** [docs/corpus_runbook.md](../docs/corpus_runbook.md).
+
 CLI alternative: `PYTHONPATH=. uv run python -m ingestion.indexer --source /path/to/docs --google-cloud-project YOUR_PROJECT_ID`.
 
 ## `bootstrap_bq.py` — synthetic BigQuery doc metadata (spec §6.4)
