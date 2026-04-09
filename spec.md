@@ -628,32 +628,50 @@ steps:
 
 ## 13. Local Development
 
+Authoritative tooling: **Python 3.12**, **uv** + [pyproject.toml](pyproject.toml) (no `requirements.txt`); Docker for Postgres, Redis, and Qdrant ([infra/docker-compose.yml](infra/docker-compose.yml)). See also [AGENTS.md](AGENTS.md) and [spec_phase2.md](spec_phase2.md) developer path.
+
 ```bash
-# Start local dependencies
-docker-compose up -d   # Qdrant + Redis (omit Langfuse container if using hosted Langfuse SaaS)
+# Start local dependencies (repo root)
+docker compose -f infra/docker-compose.yml up -d
 
-# Install dependencies
-pip install -r requirements.txt
+# Install app dependencies (no pip install -r requirements.txt)
+uv sync
 
-# Set environment variables
-cp .env.example .env   # GCP project, Vertex AI, Langfuse (hosted), E2B, pepper, feature flags
+# Environment
+cp .env.example .env   # GOOGLE_CLOUD_PROJECT, DATABASE_URL, REDIS_URL, API_KEY_PEPPER, …
 
-# Bootstrap BigQuery synthetic dataset (once per env)
-python scripts/bootstrap_bq.py --project YOUR_PROJECT ...
+# Database schema (Postgres from compose: postgres / querymesh)
+uv run alembic upgrade head
 
-# Run ingestion (local async worker / BackgroundTasks path)
-python -m ingestion.indexer --source gcp_docs
+# API key (once per user)
+PYTHONPATH=. uv run python scripts/mint_api_key.py
 
-# Start API
-uvicorn api.main:app --reload
+# Bootstrap BigQuery synthetic dataset (once per env; ADC required)
+PYTHONPATH=. uv run python scripts/bootstrap_bq.py --project YOUR_PROJECT_ID
 
-# Tests (PR-equivalent)
-pytest -q
+# Ingestion — CLI path (or use POST /ingest with INGESTION_GCP_DOCS_DIR set)
+PYTHONPATH=. uv run python -m ingestion.indexer \
+  --source ./corpus/gcp_docs \
+  --google-cloud-project YOUR_PROJECT_ID
 
-# Evals (nightly-style locally; ``uv sync --group eval`` first)
-RUN_EVAL=1 uv run --group eval python -m evals.ragas_eval --limit 5
+# API (host)
+PYTHONPATH=. uv run uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
+
+# Tests (PR-equivalent; stub env if .env is incomplete — see .github/workflows/ci.yml)
+export DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/querymesh
+export API_KEY_PEPPER=local-dev-pepper
+export REDIS_URL=redis://localhost:6379/0
+export RATE_LIMIT_STORAGE_URI=memory://
+uv run pytest -q
+
+# Evals (optional; install eval group first)
+uv sync --group eval
+PYTHONPATH=. uv run --group eval python -m evals.ragas_eval --dry-run
+RUN_EVAL=1 PYTHONPATH=. uv run --group eval python -m evals.ragas_eval --limit 5
 RUN_EVAL=1 uv run --group eval pytest evals/test_deepeval_suite.py -v
 ```
+
+**Corpus / reindex:** [docs/corpus_runbook.md](docs/corpus_runbook.md).
 
 ---
 
