@@ -98,6 +98,8 @@ resource.type="cloud_run_revision"
 
 If your runtime wraps JSON inside `textPayload`, use a **regular expression** extractor on `textPayload` for `"message_type":"querymesh_query"`, then extract numeric `latency_ms`. See [Create log-based metrics](https://cloud.google.com/logging/docs/logs-based-metrics). Use alert policies on `http_status=500` and latency thresholds.
 
+**Console walkthrough + Terraform sample:** [docs/cloud_logging_metrics.md](../docs/cloud_logging_metrics.md) — includes Logs Explorer filters, counter/distribution steps, and optional [infra/terraform](terraform/README.md) snippet.
+
 ### Qdrant on Cloud Run (optional)
 
 Spec §12 targets a dedicated Qdrant service (e.g. **2 CPU / 4Gi**, **min instances 1**). Deploy the official image in the same region and point **`QDRANT_URL`** (and API key if enabled) at it; keep the API’s **`QDRANT_COLLECTION`** aligned with ingestion.
