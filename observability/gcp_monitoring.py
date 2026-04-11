@@ -4,6 +4,10 @@ v1 does not export custom metrics to Cloud Monitoring from this process. Cloud R
 emits request logs; use **log-based metrics** and **Alerting policies** in the Google Cloud
 console from those logs, or add an OpenTelemetry exporter in a later iteration.
 
+**Operational playbook (Phase 2):**
+[docs/cloud_logging_metrics.md](../docs/cloud_logging_metrics.md) — log filters,
+counters/distributions, charts, and how to use the ``ALERT_*`` constants below.
+
 This module documents intended custom metric types and emits **debug** lines for local
 verification when ``logging`` level is DEBUG.
 """

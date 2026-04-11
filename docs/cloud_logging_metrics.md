@@ -49,20 +49,51 @@ resource.type="cloud_run_revision"
 
 5. Optional **labels**: add extractors for `intent_bucket` and `http_status` when those fields exist on `jsonPayload`; for `textPayload`-only lines, use **REGEXP_EXTRACT** on the JSON string.
 
-## 4. Chart and alert
+## 4. Charts (Monitoring)
 
 1. **Monitoring** → **Metrics explorer** → search for `querymesh_query` (user-defined log-based metrics).
-2. Chart **p50/p95** for the latency distribution (if created).
-3. **Alerting** → create policy on:
+2. Chart **request rate** from the counter and **p50/p95** from the latency distribution (if created).
 
-   - Error rate: filter or label `http_status = 500` (requires labels or a separate error counter metric), or
-   - Latency p95 over threshold (align with [spec.md](../spec.md) Phase 2 / observability targets).
+## 5. Alerts aligned with code constants
 
-## 5. Terraform (optional)
+[observability/gcp_monitoring.py](../observability/gcp_monitoring.py) documents spec §12 **targets** (single place to keep numbers in sync with this playbook):
 
-Copy [infra/terraform/log_metrics.tf.example](../infra/terraform/log_metrics.tf.example) into a working Terraform root, set `project_id`, run `terraform plan`. Adjust filters if your `resource.labels.service_name` differs.
+| Constant | Value | Use |
+| -------- | ----- | --- |
+| `ALERT_API_ERROR_RATE_PCT` | **5** % | Rolling error share of `/query` handler logs |
+| `ALERT_API_ERROR_WINDOW_MIN` | **5** min | Rolling window for error-rate condition |
+| `ALERT_P95_LATENCY_SEC` | **8** s | p95 **successful** handler latency (8000 ms in JSON logs) |
+| `ALERT_CLOUD_RUN_MAX_INSTANCES` | **10** | Cost / scale guardrail (separate metric) |
+
+**Latency alert (p95 > 8 s):**
+
+1. Requires a **distribution** log-based metric on `latency_ms` (section 3), filtered to **`http_status` 200** if you also log failures with large latencies (optional label extractor on `jsonPayload.http_status`).
+2. **Alerting** → **Create policy** → **Add condition** → **Threshold** on that metric → **Aggregated across time series** → **Percentile 95** → trigger if **above 8000** (ms) for **5 minutes** (match `ALERT_API_ERROR_WINDOW_MIN` or tune).
+
+**Error share alert (~5% over 5 min):**
+
+1. Create a **second counter** metric, e.g. `querymesh_query_errors`, with the same base filter as section 2 **plus** `http_status=500`, e.g.:
+
+   ```text
+   resource.type="cloud_run_revision"
+   resource.labels.service_name="api"
+   (jsonPayload.message_type="querymesh_query" AND jsonPayload.http_status=500)
+   ```
+
+   If you only have `textPayload`, add `OR textPayload=~"\"http_status\"\\s*:\\s*500"` to the line match.
+
+2. In **Metrics explorer** or **Alerting**, use **MQL** or a **ratio-based** condition: rolling counts of `querymesh_query_errors` / `querymesh_query_requests` **> 0.05** over **5m**. (Exact UI path varies; you can also alert when **error count** exceeds a fixed threshold if traffic is steady.)
+
+3. Tune notifications and runbooks to match your SLOs; **E2B / code paths** may legitimately exceed global latency SLO (see [spec.md](../spec.md) §14).
+
+**Instance / cost guardrail:** use Cloud Run metrics (`instance_count`) with threshold tied to `ALERT_CLOUD_RUN_MAX_INSTANCES`.
+
+## 6. Terraform (optional)
+
+Copy [infra/terraform/log_metrics.tf.example](../infra/terraform/log_metrics.tf.example) into a working Terraform root, set `project_id`, run `terraform plan`. Adjust filters if your `resource.labels.service_name` differs. Alert policies are typically created in Console or a separate Terraform module (ratio / MQL).
 
 ## Related
 
 - [infra/README.md](../infra/README.md) — deploy and high-level logging notes.
+- [observability/gcp_monitoring.py](../observability/gcp_monitoring.py) — metric name conventions + `ALERT_*` constants.
 - [Create log-based metrics](https://cloud.google.com/logging/docs/logs-based-metrics)
