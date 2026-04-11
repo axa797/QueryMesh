@@ -8,7 +8,7 @@ Update this file when starting or finishing a phase (short note under the item i
 
 ## Current focus
 
-- **Phase 2** — Corpus runbook + golden specialist checks done (see [docs/corpus_runbook.md](docs/corpus_runbook.md)). **Next (optional):** Terraform / click-path dashboard for log-based metrics; reconcile `spec.md` §13 local dev with `uv`/Docker per [spec_phase2.md](spec_phase2.md).
+- **Phase 2** — Log-based metrics guide ([docs/cloud_logging_metrics.md](docs/cloud_logging_metrics.md)) + Terraform sample ([infra/terraform](infra/terraform)); `spec.md` §13 aligned with `uv` / Docker. Optional: wire alerts in prod; import [observability/gcp_monitoring.py](observability/gcp_monitoring.py) thresholds into policies.
 
 ## Phase checklist (§15)
 
@@ -50,7 +50,7 @@ From spec: **(a)** auth + session tests green before agents; **(b)** RAG path pr
 - **Gate (a):** Session + stable 403 JSON + `thread_id` on LangGraph config — [tests/test_session_unit.py](tests/test_session_unit.py).
 - **RAG rerank:** Discovery Engine `RankService` when `RAG_VERTEX_RERANK`; [tests/test_retrieval_rerank_unit.py](tests/test_retrieval_rerank_unit.py).
 - **Persisted ingest:** `ingestion_jobs` table; in-process worker; [api/ingestion_schedule.py](api/ingestion_schedule.py) hook for future Cloud Run Job.
-- **Corpus / evals:** [docs/corpus_runbook.md](docs/corpus_runbook.md); [tests/test_golden_specialist_profiles_unit.py](tests/test_golden_specialist_profiles_unit.py); manual CI [.github/workflows/eval-manual.yml](.github/workflows/eval-manual.yml) (`workflow_dispatch`, RAGAS `--dry-run`).
+- **Ops dashboards:** [docs/cloud_logging_metrics.md](docs/cloud_logging_metrics.md); [infra/terraform/README.md](infra/terraform/README.md) (`log_metrics.tf.example`).
 
 ---
 
