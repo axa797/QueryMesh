@@ -35,6 +35,8 @@ A teammate or stakeholder can:
 | Base spec drift             | spec §13 still mentions `pip` / `requirements.txt`                                            | **Do not edit `spec.md` in Phase 2 unless you explicitly reconcile**; Phase 2 acceptance includes a **short “developer path”** section here that points at `uv`, [AGENTS.md](AGENTS.md), and Docker-first |
 
 
+**Snapshot (Phase 2 delivered):** The table above records the original gaps. For current implementation status, see **[PROGRESS.md](PROGRESS.md)** — including rerank, persisted ingest, CI, demo, corpus runbook, `/query` JSON logs, [docs/cloud_logging_metrics.md](docs/cloud_logging_metrics.md), reconciled [spec.md](spec.md) §13, and Terraform log-metric sample under [infra/terraform](infra/terraform).
+
 ---
 
 ## 3. Workstreams

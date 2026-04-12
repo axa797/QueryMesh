@@ -8,7 +8,7 @@ Update this file when starting or finishing a phase (short note under the item i
 
 ## Current focus
 
-- **Phase 2** — Log-based metrics guide ([docs/cloud_logging_metrics.md](docs/cloud_logging_metrics.md)) + Terraform sample ([infra/terraform](infra/terraform)); `spec.md` §13 aligned with `uv` / Docker. Optional: wire alerts in prod; import [observability/gcp_monitoring.py](observability/gcp_monitoring.py) thresholds into policies.
+- **Phase 2** — Largely complete per [spec_phase2.md](spec_phase2.md) snapshot. **Alerts:** follow [docs/cloud_logging_metrics.md](docs/cloud_logging_metrics.md) §5 using `ALERT_*` in [observability/gcp_monitoring.py](observability/gcp_monitoring.py). **Next:** product hardening, Phase 3 scoping, or cost/latency tuning in prod.
 
 ## Phase checklist (§15)
 
