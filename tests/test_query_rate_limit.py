@@ -19,6 +19,7 @@ def low_query_rate_limit(monkeypatch: pytest.MonkeyPatch) -> None:
         limiter.reset()
     except (NotImplementedError, AttributeError):
         pass
+    get_settings.cache_clear()
 
 
 def test_rate_limit_before_auth_returns_429(low_query_rate_limit: None) -> None:

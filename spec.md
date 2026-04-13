@@ -673,6 +673,8 @@ RUN_EVAL=1 uv run --group eval pytest evals/test_deepeval_suite.py -v
 
 **Corpus / reindex:** [docs/corpus_runbook.md](docs/corpus_runbook.md).
 
+**Step-by-step (compose, Alembic, mint key, browser demo):** [docs/local_dev.md](docs/local_dev.md).
+
 ---
 
 ## 14. Success Criteria

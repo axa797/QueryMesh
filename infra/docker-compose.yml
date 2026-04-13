@@ -1,4 +1,4 @@
-# Local backing services only. API image: infra/Dockerfile; see infra/README.md for Cloud Run.
+# Local backing services only. Run API on host per docs/local_dev.md (uvicorn); Cloud Run: infra/README.md.
 # Usage: docker compose -f infra/docker-compose.yml up -d
 services:
   qdrant:

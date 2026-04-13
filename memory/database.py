@@ -35,3 +35,21 @@ async def ping_redis(url: str) -> bool:
         return False
     finally:
         await client.aclose()
+
+
+async def ping_qdrant(url: str, *, api_key: str | None = None) -> bool:
+    """Cheap TCP-round-trip check (collections list) for /health."""
+    try:
+        from qdrant_client import AsyncQdrantClient
+
+        kwargs: dict = {"url": url, "check_compatibility": False}
+        if api_key:
+            kwargs["api_key"] = api_key
+        client = AsyncQdrantClient(**kwargs)
+        try:
+            await client.get_collections()
+            return True
+        finally:
+            await client.close()
+    except Exception:
+        return False

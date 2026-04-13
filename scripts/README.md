@@ -4,6 +4,8 @@
 
 Issue API keys (see [AGENTS.md](../AGENTS.md) Development section).
 
+**First-time local stack:** [docs/local_dev.md](../docs/local_dev.md) · `./scripts/prepare_local.sh`.
+
 ## HTTP ingestion API (`POST /ingest`, Phase 15)
 
 From a running API, with `INGESTION_GCP_DOCS_DIR` pointing at your document tree and Qdrant + Vertex available:

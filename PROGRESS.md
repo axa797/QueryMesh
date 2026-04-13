@@ -4,7 +4,7 @@ Single source of truth for **what is done** vs **spec §15 build order**.
 Update this file when starting or finishing a phase (short note under the item is enough).
 
 **Spec:** [spec.md](spec.md)  
-**Agent context:** [AGENTS.md](AGENTS.md)
+**Agent context:** [AGENTS.md](AGENTS.md) · **Local stack (no deploy):** [docs/local_dev.md](docs/local_dev.md)
 
 ## Current focus
 
