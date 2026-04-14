@@ -640,22 +640,22 @@ uv sync
 # Environment
 cp .env.example .env   # GOOGLE_CLOUD_PROJECT, DATABASE_URL, REDIS_URL, API_KEY_PEPPER, …
 
-# Database schema (Postgres from compose: postgres / querymesh)
-uv run alembic upgrade head
+# Database schema (Alembic does not auto-load .env; pass it explicitly)
+uv run --env-file .env alembic upgrade head
 
 # API key (once per user)
-PYTHONPATH=. uv run python scripts/mint_api_key.py
+PYTHONPATH=. uv run --env-file .env python scripts/mint_api_key.py
 
 # Bootstrap BigQuery synthetic dataset (once per env; ADC required)
-PYTHONPATH=. uv run python scripts/bootstrap_bq.py --project YOUR_PROJECT_ID
+PYTHONPATH=. uv run --env-file .env python scripts/bootstrap_bq.py --project YOUR_PROJECT_ID
 
 # Ingestion — CLI path (or use POST /ingest with INGESTION_GCP_DOCS_DIR set)
-PYTHONPATH=. uv run python -m ingestion.indexer \
+PYTHONPATH=. uv run --env-file .env python -m ingestion.indexer \
   --source ./corpus/gcp_docs \
   --google-cloud-project YOUR_PROJECT_ID
 
 # API (host)
-PYTHONPATH=. uv run uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
+PYTHONPATH=. uv run --env-file .env uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
 
 # Tests (PR-equivalent; stub env if .env is incomplete — see .github/workflows/ci.yml)
 export DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/querymesh

@@ -16,11 +16,11 @@ From the repo root:
 ./scripts/prepare_local.sh
 cp .env.example .env
 # Edit .env: set API_KEY_PEPPER (any long random string), GOOGLE_CLOUD_PROJECT if using Vertex.
-# For the browser demo, set CORS_ALLOW_ORIGINS=* (see comment at bottom of this file).
+# For the browser demo, uncomment CORS_ALLOW_ORIGINS=* at the bottom of .env.
 
 uv sync
-uv run alembic upgrade head
-PYTHONPATH=. uv run python scripts/mint_api_key.py
+uv run --env-file .env alembic upgrade head
+PYTHONPATH=. uv run --env-file .env python scripts/mint_api_key.py
 ```
 
 Save the printed API key; it is shown once.
@@ -28,7 +28,7 @@ Save the printed API key; it is shown once.
 ## 3. Run the API
 
 ```bash
-PYTHONPATH=. uv run uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
+PYTHONPATH=. uv run --env-file .env uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 Sanity check:

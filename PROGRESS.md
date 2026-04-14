@@ -62,7 +62,7 @@ Use GitHub task lists (`- [ ]` / `- [x]`) or turn each line into an issue. Recon
 
 ### Before first production deploy
 
-- [ ] Local smoke: [docs/local_dev.md](docs/local_dev.md) — compose up, `alembic upgrade head`, mint key, `uvicorn`, `GET /health` all services `true`, demo HTML + `CORS_ALLOW_ORIGINS`.
+- [ ] Local smoke: [docs/local_dev.md](docs/local_dev.md) — compose up, `uv run --env-file .env alembic upgrade head`, mint key, `uvicorn` with `--env-file .env`, `GET /health` all services `true`, demo HTML + `CORS_ALLOW_ORIGINS`.
 - [ ] Secrets: `API_KEY_PEPPER`, DB/Redis/Qdrant URLs, optional `E2B_*`, Langfuse keys per [infra/README.md](infra/README.md).
 - [ ] Cloud Run (+ Qdrant if self-hosted): image from [infra/Dockerfile](infra/Dockerfile), `us-central1`, env aligned with `.env.example`.
 - [ ] Log-based metrics + alert policies: [docs/cloud_logging_metrics.md](docs/cloud_logging_metrics.md) using `ALERT_*` in [observability/gcp_monitoring.py](observability/gcp_monitoring.py).
