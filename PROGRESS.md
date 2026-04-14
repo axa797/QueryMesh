@@ -8,13 +8,14 @@ Update this file when starting or finishing a phase (short note under the item i
 
 ## Current focus
 
-- **Phase 2** — Largely complete per [spec_phase2.md](spec_phase2.md) snapshot. **Alerts:** follow [docs/cloud_logging_metrics.md](docs/cloud_logging_metrics.md) §5 using `ALERT_*` in [observability/gcp_monitoring.py](observability/gcp_monitoring.py). **Next:** product hardening, Phase 3 scoping, or cost/latency tuning in prod.
+- **Pre-deploy:** Local path is documented in [docs/local_dev.md](docs/local_dev.md); `/health` checks Postgres, Redis, and Qdrant. Track outstanding work in **Next steps (tracked)** below.
+- **Phase 2** — Largely complete per [spec_phase2.md](spec_phase2.md). Remaining Phase 2-style items are mostly **operational** (GCP alert policies, first prod deploy), not code.
 
 ## Phase checklist (§15)
 
 - **1. Repo scaffold** — Done: Python 3.12, uv, [pyproject.toml](pyproject.toml), Ruff, package layout per spec, [.env.example](.env.example), [LICENSE](LICENSE), [tests/test_health.py](tests/test_health.py). Dependencies in `pyproject.toml` only (no `requirements.txt`).
 - **2. Infra primitives (local)** — Done: [infra/docker-compose.yml](infra/docker-compose.yml) — Qdrant, Redis, Postgres (`postgres` / `querymesh`); Langfuse env vars in [.env.example](.env.example) (optional; hosted SaaS per §11).
-- **3. Postgres schema & migrations** — Done: Alembic [alembic/versions/001_initial_schema.py](alembic/versions/001_initial_schema.py) — `users`, `api_keys`, `user_memory`, LangGraph checkpoint tables + seeded `checkpoint_migrations`; `/health` probes Postgres when `DATABASE_URL` is set.
+- **3. Postgres schema & migrations** — Done: Alembic [alembic/versions/001_initial_schema.py](alembic/versions/001_initial_schema.py) — `users`, `api_keys`, `user_memory`, LangGraph checkpoint tables + seeded `checkpoint_migrations`; [002](alembic/versions/002_ingestion_jobs_table.py) `ingestion_jobs`; `/health` probes Postgres, Redis, and Qdrant when URLs are set.
 - **4. Auth middleware** — Done: [api/deps.py](api/deps.py) Bearer → [api/auth.py](api/auth.py) digest + lookup; stable 401 JSON; [scripts/mint_api_key.py](scripts/mint_api_key.py); stub [POST /query](api/routes/query.py).
 - **5. Session layer** — Done: [memory/session_envelope.py](memory/session_envelope.py) — Redis envelope (`querymesh:session:{uuid}`), 24h TTL, optional `session_id` on [QueryRequest](api/schemas/query.py); mint or validate + **403** `invalid_session`; `thread_id` = `{user_id}:{session_id}`; [memory/redis_client.py](memory/redis_client.py); `/health` pings Redis.
 - **6. Long-term memory reads** — Done: [memory/longterm.py](memory/longterm.py) — `load_top_k_memories` + `compact_to_token_budget` (§7: k=5, ordering, 256-token cap); wired into [POST /query](api/routes/query.py) before orchestrator stub (`has_memory` in response).
@@ -51,6 +52,31 @@ From spec: **(a)** auth + session tests green before agents; **(b)** RAG path pr
 - **RAG rerank:** Discovery Engine `RankService` when `RAG_VERTEX_RERANK`; [tests/test_retrieval_rerank_unit.py](tests/test_retrieval_rerank_unit.py).
 - **Persisted ingest:** `ingestion_jobs` table; in-process worker; [api/ingestion_schedule.py](api/ingestion_schedule.py) hook for future Cloud Run Job.
 - **Ops dashboards:** [docs/cloud_logging_metrics.md](docs/cloud_logging_metrics.md); [infra/terraform/README.md](infra/terraform/README.md) (`log_metrics.tf.example`).
+- **Local dev (pre-deploy):** [docs/local_dev.md](docs/local_dev.md), [scripts/prepare_local.sh](scripts/prepare_local.sh); demo [demo/querymesh-demo.html](demo/querymesh-demo.html); pytest: high `QUERY_RATE_LIMIT` + cache clear after rate-limit tests ([tests/conftest.py](tests/conftest.py), [tests/test_query_rate_limit.py](tests/test_query_rate_limit.py)).
+
+---
+
+## Next steps (tracked)
+
+Use GitHub task lists (`- [ ]` / `- [x]`) or turn each line into an issue. Reconcile here when items ship.
+
+### Before first production deploy
+
+- [ ] Local smoke: [docs/local_dev.md](docs/local_dev.md) — compose up, `alembic upgrade head`, mint key, `uvicorn`, `GET /health` all services `true`, demo HTML + `CORS_ALLOW_ORIGINS`.
+- [ ] Secrets: `API_KEY_PEPPER`, DB/Redis/Qdrant URLs, optional `E2B_*`, Langfuse keys per [infra/README.md](infra/README.md).
+- [ ] Cloud Run (+ Qdrant if self-hosted): image from [infra/Dockerfile](infra/Dockerfile), `us-central1`, env aligned with `.env.example`.
+- [ ] Log-based metrics + alert policies: [docs/cloud_logging_metrics.md](docs/cloud_logging_metrics.md) using `ALERT_*` in [observability/gcp_monitoring.py](observability/gcp_monitoring.py).
+
+### After deploy / ongoing
+
+- [ ] Enable `RAG_VERTEX_RERANK` only after Discovery Engine API + smoke; see [.env.example](.env.example).
+- [ ] Cost/latency pass: candidate limits, models, rate limits — driven by Langfuse + `querymesh_query` stdout logs.
+- [ ] **Phase 3 (optional scoping):** document goals (e.g. Cloud Run Job for ingest replacing `BackgroundTasks`, deeper dashboards). Prior backlog in Notes still lists historical phase bullets.
+
+### Done recently (keep for audit trail)
+
+- [x] Local dev runbook + `prepare_local.sh`; `/health` includes real Qdrant ping ([memory/database.py](memory/database.py)).
+- [x] Phase 2 CI, persisted ingest jobs, rerank, structured `/query` logs, demo HTML, corpus runbook — see Phase 2 block above.
 
 ---
 
@@ -58,6 +84,7 @@ From spec: **(a)** auth + session tests green before agents; **(b)** RAG path pr
 
 *Use for decisions, blockers, or links to PRs. Newest first.*
 
+- **2026-04:** Pre-deploy local stack documented; track remaining work under **Next steps (tracked)**.
 - **Corpus runbook (Phase 2):** [docs/corpus_runbook.md](docs/corpus_runbook.md), golden analytics/code profile tests, `workflow_dispatch` eval validation workflow.
 - Scaffold choices: Python **3.12**, **uv** + pyproject, **Ruff** only, **ADC only** (no SA JSON), **BIGQUERY_DATASET=querymesh**, local **Postgres** user/db **postgres** / **querymesh**, **Langfuse** env empty until §15.16, proprietary **LICENSE**; **GitHub Actions** CI for lint + fast tests ([.github/workflows/ci.yml](.github/workflows/ci.yml)); Cloud Build deploy unchanged.
 - **Phase 3:** Alembic at repo root; LangGraph DDL aligned with `langgraph-checkpoint-postgres==3.0.5` `MIGRATIONS[0:11]`; non-CONCURRENT indexes for transactional migration.
