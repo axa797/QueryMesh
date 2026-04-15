@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
@@ -11,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from graph.pipeline import dispose_compiled_query_graph
 from memory.checkpointer import dispose_checkpoint_pool
-from memory.database import database_url, ping_postgres, ping_qdrant, ping_redis
+from memory.database import ping_postgres, ping_qdrant, ping_redis
 from memory.redis_client import close_redis
 from memory.session import dispose_engine
 from slowapi.errors import RateLimitExceeded
@@ -90,9 +89,9 @@ app.include_router(ingest_routes.router)
 async def health() -> dict:
     """Liveness + dependency status (spec §8 API)."""
     settings = get_settings()
-    db_url = database_url()
+    db_url = settings.database_url
     pg_ok = await ping_postgres(db_url) if db_url else False
-    redis_url = os.environ.get("REDIS_URL")
+    redis_url = settings.redis_url
     redis_ok = await ping_redis(redis_url) if redis_url else False
     qdrant_ok = await ping_qdrant(
         settings.qdrant_url,
