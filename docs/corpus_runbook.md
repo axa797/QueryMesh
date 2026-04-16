@@ -7,6 +7,18 @@ Public **GCP documentation PDFs only**. The repo does not ship PDFs: use a local
 - About **15–20 PDFs**, roughly **500–800 pages** total (Cloud Run, Vertex AI, BigQuery, GKE, Cloud Storage, …).
 - Quality over quantity: keep headings and export quality high so section-aware chunking works.
 
+## Where to get PDFs
+
+Google no longer exposes a single “export all product docs as PDF” tree; use **official PDFs** only.
+
+1. **Quick starter (recommended):** from repo root run  
+   `./scripts/fetch_gcp_corpus_pdfs.sh`  
+   This downloads a curated set of public PDFs (gcloud cheat sheet + selected **cloud.google.com** / **services.google.com** whitepapers) into **`./corpus/gcp_docs/`**. Inspect or edit the URL list inside the script if you want a different mix.
+2. **Browse manually:** [Google Cloud whitepapers](https://cloud.google.com/whitepapers/) — each entry links a `.pdf`; save into `corpus/gcp_docs/` with readable filenames.
+3. **Print from HTML (fallback):** open a [docs.cloud.google.com](https://docs.cloud.google.com/) page in the browser → **Print** → **Save as PDF** (quality varies; prefer native PDFs when possible).
+
+The fetch script above matches the spec’s **~15–20 PDF** starter goal; add or replace files under `corpus/gcp_docs/` as needed.
+
 ## Layout
 
 ```text

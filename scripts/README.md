@@ -6,6 +6,17 @@ Issue API keys (see [AGENTS.md](../AGENTS.md) Development section).
 
 **First-time local stack:** [docs/local_dev.md](../docs/local_dev.md) · `./scripts/prepare_local.sh`.
 
+## `fetch_gcp_corpus_pdfs.sh`
+
+Downloads **16** public GCP PDFs (cheat sheet + whitepapers) into `./corpus/gcp_docs/`. Requires `curl` and network access.
+
+```bash
+./scripts/fetch_gcp_corpus_pdfs.sh
+# optional: ./scripts/fetch_gcp_corpus_pdfs.sh /path/to/corpus/gcp_docs
+```
+
+Details and alternatives (manual whitepaper picks, print-to-PDF): [docs/corpus_runbook.md](../docs/corpus_runbook.md).
+
 ## HTTP ingestion API (`POST /ingest`, Phase 15)
 
 From a running API, with `INGESTION_GCP_DOCS_DIR` pointing at your document tree and Qdrant + Vertex available:
