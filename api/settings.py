@@ -4,8 +4,17 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _optional_nonempty_str(v: object) -> str | None:
+    if v is None:
+        return None
+    if isinstance(v, str):
+        s = v.strip()
+        return s or None
+    return str(v)
 
 
 class Settings(BaseSettings):
@@ -72,6 +81,16 @@ class Settings(BaseSettings):
     code_exec_output_max_bytes: int = 65536
     code_exec_max_concurrent: int = 2
     code_exec_max_code_chars: int = 200_000
+
+    @field_validator(
+        "google_cloud_project",
+        "bigquery_project_id",
+        "qdrant_api_key",
+        mode="before",
+    )
+    @classmethod
+    def _blank_optional_str(cls, v: object) -> str | None:
+        return _optional_nonempty_str(v)
 
 
 @lru_cache

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
@@ -19,11 +20,16 @@ from slowapi.middleware import SlowAPIMiddleware
 from api.rate_limit import limiter
 from api.routes import ingest as ingest_routes
 from api.routes import query as query_routes
+from api.runtime_info import build_capabilities, log_startup_capabilities
 from api.settings import get_settings
+
+log = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    settings = get_settings()
+    log_startup_capabilities(settings)
     try:
         yield
     finally:
@@ -104,4 +110,5 @@ async def health() -> dict:
             "redis": redis_ok,
             "postgres": pg_ok,
         },
+        "capabilities": build_capabilities(settings),
     }

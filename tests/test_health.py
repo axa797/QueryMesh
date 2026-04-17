@@ -10,3 +10,7 @@ def test_health() -> None:
     body = r.json()
     assert body["status"] == "ok"
     assert set(body["services"]) == {"qdrant", "redis", "postgres"}
+    cap = body["capabilities"]
+    assert cap["runtime_mode"] in ("local", "vertex")
+    assert "vertex_project_configured" in cap
+    assert cap["application_default_credentials_ok"] in (None, True, False)
