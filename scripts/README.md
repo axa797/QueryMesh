@@ -8,14 +8,23 @@ Issue API keys (see [AGENTS.md](../AGENTS.md) Development section).
 
 ## `fetch_gcp_corpus_pdfs.sh`
 
-Downloads **16** public GCP PDFs (cheat sheet + whitepapers) into `./corpus/gcp_docs/`. Requires `curl` and network access.
+Downloads **16** public GCP PDFs (cheat sheet + whitepapers) and **22** [Gemini Enterprise Agent Platform](https://docs.cloud.google.com/gemini-enterprise-agent-platform) doc pages as `.md` into `./corpus/gcp_docs/`. Requires `curl`, `uv`, and network access.
 
 ```bash
 ./scripts/fetch_gcp_corpus_pdfs.sh
 # optional: ./scripts/fetch_gcp_corpus_pdfs.sh /path/to/corpus/gcp_docs
 ```
 
-Details and alternatives (manual whitepaper picks, print-to-PDF): [docs/corpus_runbook.md](../docs/corpus_runbook.md).
+Details and alternatives (manual whitepaper picks, print-to-PDF, **Gemini Enterprise Agent Platform** HTML → Markdown): [docs/corpus_runbook.md](../docs/corpus_runbook.md).
+
+### `fetch_gemini_enterprise_agent_platform_docs.py`
+
+Downloads **22** public documentation pages from [Gemini Enterprise Agent Platform](https://docs.cloud.google.com/gemini-enterprise-agent-platform) (plus [Agent Registry](https://docs.cloud.google.com/agent-registry/overview)) into `corpus/gcp_docs/` as `.md` for ingestion. Run alone or via `fetch_gcp_corpus_pdfs.sh`.
+
+```bash
+PYTHONPATH=. uv run python scripts/fetch_gemini_enterprise_agent_platform_docs.py
+# optional: --out /path/to/gcp_docs  --delay 1.0
+```
 
 ## HTTP ingestion API (`POST /ingest`, Phase 15)
 

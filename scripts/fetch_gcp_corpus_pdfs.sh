@@ -49,5 +49,7 @@ fetch "https://cloud.google.com/dataflow/pdf/TransformingOptionsMarketData.pdf" 
 fetch "https://services.google.com/fh/files/misc/vpc_flow_logs_understanding_byte_and_packet_counts.pdf" \
   "vpc-flow-logs-byte-packet-counts.pdf"
 
-echo "Done. PDFs in $DEST ($(ls -1 "$DEST" | wc -l | tr -d ' ') files)."
+echo "Fetching Gemini Enterprise Agent Platform docs (HTML → Markdown under same directory) ..."
+PYTHONPATH=. uv run python scripts/fetch_gemini_enterprise_agent_platform_docs.py --out "$DEST"
+echo "Done. $(ls -1 "$DEST" | wc -l | tr -d ' ') files under $DEST."
 echo "Next: set INGESTION_GCP_DOCS_DIR=$DEST (or ./corpus/gcp_docs), run POST /ingest or ingestion CLI — see docs/corpus_runbook.md"
