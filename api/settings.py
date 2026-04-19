@@ -32,7 +32,8 @@ class Settings(BaseSettings):
     google_cloud_project: str | None = None
     google_cloud_location: str = "us-central1"
     vertex_embedding_model: str = "text-embedding-004"
-    vertex_llm_model: str = "gemini-2.0-flash"
+    # Vertex publisher id; must match a model available in GOOGLE_CLOUD_LOCATION.
+    vertex_llm_model: str = "gemini-2.5-flash"
 
     # Qdrant (local: docker-compose)
     qdrant_url: str = "http://localhost:6333"

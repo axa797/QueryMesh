@@ -98,7 +98,7 @@ def main(argv: list[str] | None = None) -> int:
 
     location = (os.environ.get("GOOGLE_CLOUD_LOCATION") or "us-central1").strip()
     lc_llm = ChatVertexAI(
-        model_name=(os.environ.get("VERTEX_LLM_MODEL") or "gemini-2.0-flash"),
+        model_name=(os.environ.get("VERTEX_LLM_MODEL") or "gemini-2.5-flash"),
         project=project,
         location=location,
         temperature=0,
