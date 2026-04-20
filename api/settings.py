@@ -31,7 +31,8 @@ class Settings(BaseSettings):
     # GCP / RAG (§9, §15.8)
     google_cloud_project: str | None = None
     google_cloud_location: str = "us-central1"
-    vertex_embedding_model: str = "text-embedding-004"
+    # text-embedding-004 was retired 2026-01-14; 005 is the current English/code workhorse.
+    vertex_embedding_model: str = "text-embedding-005"
     # Vertex publisher id; must match a model available in GOOGLE_CLOUD_LOCATION.
     vertex_llm_model: str = "gemini-2.5-flash"
 

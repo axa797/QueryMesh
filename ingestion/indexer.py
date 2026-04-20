@@ -135,7 +135,7 @@ def main() -> None:
     p.add_argument("--collection", default="gcp_docs")
     p.add_argument("--google-cloud-project", required=True)
     p.add_argument("--google-cloud-location", default="us-central1")
-    p.add_argument("--embedding-model", default="text-embedding-004")
+    p.add_argument("--embedding-model", default="text-embedding-005")
     p.add_argument(
         "--recreate-collection",
         action="store_true",

@@ -1,8 +1,9 @@
 # Local backing services only. Run API on host per docs/local_dev.md (uvicorn); Cloud Run: infra/README.md.
+# Keep Qdrant image within one minor of qdrant-client (pyproject) to avoid SDK warnings / protocol skew.
 # Usage: docker compose -f infra/docker-compose.yml up -d
 services:
   qdrant:
-    image: qdrant/qdrant:v1.12.4
+    image: qdrant/qdrant:v1.17.1
     ports:
       - "6333:6333"
       - "6334:6334"

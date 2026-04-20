@@ -1,4 +1,4 @@
-"""Vertex AI text embeddings (spec §9: text-embedding-004, batch 100)."""
+"""Vertex AI text embeddings (``text-embedding-005``; batch 100)."""
 
 from __future__ import annotations
 

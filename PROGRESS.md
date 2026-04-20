@@ -62,21 +62,21 @@ Use GitHub task lists (`- [ ]` / `- [x]`) or turn each line into an issue. Recon
 
 ### Before first production deploy
 
-- [ ] Local smoke: [docs/local_dev.md](docs/local_dev.md) — compose up, `uv run --env-file .env alembic upgrade head`, mint key, `uvicorn` with `--env-file .env`, `GET /health` all services `true`, demo HTML + `CORS_ALLOW_ORIGINS`.
-- [ ] Secrets: `API_KEY_PEPPER`, DB/Redis/Qdrant URLs, optional `E2B_*`, Langfuse keys per [infra/README.md](infra/README.md).
-- [ ] Cloud Run (+ Qdrant if self-hosted): image from [infra/Dockerfile](infra/Dockerfile), `us-central1`, env aligned with `.env.example`.
-- [ ] Log-based metrics + alert policies: [docs/cloud_logging_metrics.md](docs/cloud_logging_metrics.md) using `ALERT_*` in [observability/gcp_monitoring.py](observability/gcp_monitoring.py).
+- Local smoke: [docs/local_dev.md](docs/local_dev.md) — compose up, `uv run --env-file .env alembic upgrade head`, mint key, `uvicorn` with `--env-file .env`, `GET /health` all services `true`, demo HTML + `CORS_ALLOW_ORIGINS`.
+- Secrets: `API_KEY_PEPPER`, DB/Redis/Qdrant URLs, optional `E2B_`*, Langfuse keys per [infra/README.md](infra/README.md).
+- Cloud Run (+ Qdrant if self-hosted): image from [infra/Dockerfile](infra/Dockerfile), `us-central1`, env aligned with `.env.example`.
+- Log-based metrics + alert policies: [docs/cloud_logging_metrics.md](docs/cloud_logging_metrics.md) using `ALERT_`* in [observability/gcp_monitoring.py](observability/gcp_monitoring.py).
 
 ### After deploy / ongoing
 
-- [ ] Enable `RAG_VERTEX_RERANK` only after Discovery Engine API + smoke; see [.env.example](.env.example).
-- [ ] Cost/latency pass: candidate limits, models, rate limits — driven by Langfuse + `querymesh_query` stdout logs.
-- [ ] **Phase 3 (optional scoping):** document goals (e.g. Cloud Run Job for ingest replacing `BackgroundTasks`, deeper dashboards). Prior backlog in Notes still lists historical phase bullets.
+- Enable `RAG_VERTEX_RERANK` only after Discovery Engine API + smoke; see [.env.example](.env.example).
+- Cost/latency pass: candidate limits, models, rate limits — driven by Langfuse + `querymesh_query` stdout logs.
+- **Phase 3 (optional scoping):** document goals (e.g. Cloud Run Job for ingest replacing `BackgroundTasks`, deeper dashboards). Prior backlog in Notes still lists historical phase bullets.
 
 ### Done recently (keep for audit trail)
 
-- [x] Local dev runbook + `prepare_local.sh`; `/health` includes real Qdrant ping ([memory/database.py](memory/database.py)).
-- [x] Phase 2 CI, persisted ingest jobs, rerank, structured `/query` logs, demo HTML, corpus runbook — see Phase 2 block above.
+- Local dev runbook + `prepare_local.sh`; `/health` includes real Qdrant ping ([memory/database.py](memory/database.py)).
+- Phase 2 CI, persisted ingest jobs, rerank, structured `/query` logs, demo HTML, corpus runbook — see Phase 2 block above.
 
 ---
 
@@ -92,7 +92,7 @@ Use GitHub task lists (`- [ ]` / `- [x]`) or turn each line into an issue. Recon
 - **Phase 5:** Redis session envelope (24h TTL), `session_id` / `thread_id` for LangGraph, 403 stable JSON; settings require `REDIS_URL`.
 - **Phase 6:** [memory/longterm.py](memory/longterm.py) Postgres read policy + compaction; `/query` loads memory before stub orchestrator; session unit tests monkeypatch DB load to avoid TestClient/asyncpg loop issues.
 - **Phase 7:** [graph/pipeline.py](graph/pipeline.py) + [memory/checkpointer.py](memory/checkpointer.py) — LangGraph `StateGraph`, Postgres `AsyncPostgresSaver`, `thread_id` threading; unit tests use `MemorySaver`.
-- **Phase 8:** Ingestion (`ingestion/`*), Vertex `text-embedding-004`, Qdrant upsert CLI ([ingestion/indexer.py](ingestion/indexer.py)), [tools/retrieval_tool.py](tools/retrieval_tool.py), graph `**retrieve`** node; `retrieval_hits` on `/query`; Phase 2: `RAG_VERTEX_RERANK` → Discovery Engine ranker (see Phase 2 section).
+- **Phase 8:** Ingestion (`ingestion/`*), Vertex `text-embedding-005`, Qdrant upsert CLI ([ingestion/indexer.py](ingestion/indexer.py)), [tools/retrieval_tool.py](tools/retrieval_tool.py), graph `**retrieve`** node; `retrieval_hits` on `/query`; Phase 2: `RAG_VERTEX_RERANK` → Discovery Engine ranker (see Phase 2 section).
 - **Phase 9:** [agents/orchestrator.py](agents/orchestrator.py) — Gemini routing + fallbacks; graph node `orchestrator`; `orchestrator.source` metadata on `/query`.
 - **Phase 10:** RAG JSON ([agents/rag_agent.py](agents/rag_agent.py)), synthesizer ([agents/synthesizer.py](agents/synthesizer.py)), [tools/memory_tool.py](tools/memory_tool.py); graph nodes `rag_structured`, `synthesizer`; shared [agents/vertex.py](agents/vertex.py), [agents/jsonutil.py](agents/jsonutil.py).
 - **Phase 11:** BigQuery bootstrap + IAM notes in [scripts/README.md](scripts/README.md); [agents/analytics_agent.py](agents/analytics_agent.py) + [tools/bigquery_tool.py](tools/bigquery_tool.py); graph `**analytics`** after `**retrieve`** when intent; Ruff + pytest green.

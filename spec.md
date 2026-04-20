@@ -111,7 +111,7 @@ RAG Agent (retrieval at query time; optional Vertex reranker behind feature flag
 | CI/CD             | Cloud Build                    | Auto-deploy on push to main; **PRs run unit tests only**                                                       |
 | Secrets           | Secret Manager                 | E2B API key; API-key **pepper** for digest; other sensitive config                                             |
 | Tool protocol     | MCP-shaped interfaces          | **Internal registry only in v1** — MCP-compatible contracts for future external server                         |
-| Embeddings        | Vertex AI `text-embedding-004` | Consistent with Gemini ecosystem                                                                               |
+| Embeddings        | Vertex AI `text-embedding-005` | English/code; `text-embedding-004` retired 2026-01-14                                                           |
 
 
 ### Feature flags
@@ -494,7 +494,7 @@ Target: 15–20 documents, ~500–800 pages total
 
 ### Embedding
 
-- Model: Vertex AI `text-embedding-004`
+- Model: Vertex AI `text-embedding-005` (configurable; avoid retired `text-embedding-004`)
 - Batch size: 100 chunks per API call
 - Store: Qdrant collection `gcp_docs`
 
