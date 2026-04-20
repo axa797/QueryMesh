@@ -22,7 +22,7 @@ Multi-agent GCP knowledge assistant: FastAPI API, LangGraph orchestration, RAG (
 - **Memory:** Synthesizer **only** may call `save_memory`; Redis holds envelope only — not full graph state.
 - **Orchestrator:** Max **3** specialist fan-outs; routing temperature **0**; JSON retry once then RAG-only fallback.
 - **Code agent / E2B:** No egress; no ADC in sandbox; **15s** wall, **64KiB** combined output cap, **2** concurrent sandboxes per replica (tune later).
-- **Feature flag:** `RAG_VERTEX_RERANK` — prod default on, local default off (see [.env.example](.env.example)).
+- **Feature flag:** `RAG_VERTEX_RERANK` — default on when using Vertex; requires Discovery Engine API (see [.env.example](.env.example)). Pytest forces it off in [tests/conftest.py](tests/conftest.py).
 
 ## Repo map (target layout)
 

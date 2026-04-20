@@ -15,6 +15,8 @@ log = logging.getLogger(__name__)
 
 _CHUNK = 512
 _OVERLAP = 50
+# Vertex text-embedding-* caps inputs (~2048 tokens); oversized Markdown sections must be split.
+_MAX_CHUNK_CHARS = 4500
 
 
 @dataclass(frozen=True)
@@ -99,26 +101,67 @@ def _section_from_node(node: BaseNode) -> str:
     return ""
 
 
+def _split_oversized_chunks(chunks: list[TextChunk]) -> list[TextChunk]:
+    """Keep chunks under model input limits (see Vertex text embedding token caps)."""
+    if not chunks:
+        return []
+    splitter = TokenTextSplitter(chunk_size=_CHUNK, chunk_overlap=_OVERLAP)
+    out: list[TextChunk] = []
+    for c in chunks:
+        if len(c.text) <= _MAX_CHUNK_CHARS:
+            out.append(c)
+            continue
+        sub_docs = [Document(text=c.text)]
+        for node in splitter.get_nodes_from_documents(sub_docs):
+            piece = (node.get_content(metadata_mode="none") or "").strip()
+            if piece:
+                out.append(
+                    TextChunk(
+                        text=piece,
+                        source_doc=c.source_doc,
+                        section=c.section,
+                        product=c.product,
+                        page_number=c.page_number,
+                    )
+                )
+    return out
+
+
+def _is_markdown_document(doc: Document) -> bool:
+    """Treat .md / markdown MIME as Markdown; everything else uses the token splitter (e.g. PDF)."""
+    meta = doc.metadata or {}
+    ft = str(meta.get("file_type", "")).lower()
+    if ft in (".md", ".markdown", "text/markdown"):
+        return True
+    fp = str(meta.get("file_path", "")).lower()
+    return fp.endswith(".md") or fp.endswith(".markdown")
+
+
 def chunk_documents(docs: list[Document]) -> list[TextChunk]:
     """Split documents into chunks with metadata (spec §9)."""
     if not docs:
         return []
 
-    all_markdown = all(
-        str((d.metadata or {}).get("file_type", "")).lower() == ".md"
-        or str((d.metadata or {}).get("file_path", "")).lower().endswith(".md")
-        for d in docs
-    )
+    md_docs = [d for d in docs if _is_markdown_document(d)]
+    other_docs = [d for d in docs if not _is_markdown_document(d)]
 
-    used_markdown = False
+    nodes: list[BaseNode] = []
+    section_style_markdown = False
     try:
-        if all_markdown:
-            nodes, used_markdown = _nodes_from_markdown(docs)
-        else:
-            nodes, used_markdown = _nodes_from_token_split(docs, warn_fallback=True)
+        if md_docs:
+            md_nodes, section_style_markdown = _nodes_from_markdown(md_docs)
+            nodes.extend(md_nodes)
+        if other_docs:
+            other_nodes, _ = _nodes_from_token_split(other_docs, warn_fallback=False)
+            nodes.extend(other_nodes)
     except Exception:
-        log.warning("Markdown chunking failed; falling back to token splitter", exc_info=True)
-        nodes, used_markdown = _nodes_from_token_split(docs, warn_fallback=not all_markdown)
+        log.warning(
+            "Chunking failed; falling back to token splitter for all %s document(s)",
+            len(docs),
+            exc_info=True,
+        )
+        nodes, _ = _nodes_from_token_split(docs, warn_fallback=True)
+        section_style_markdown = False
 
     chunks: list[TextChunk] = []
     for node in nodes:
@@ -140,9 +183,13 @@ def chunk_documents(docs: list[Document]) -> list[TextChunk]:
             )
         )
 
+    chunks = _split_oversized_chunks(chunks)
+
     log.info(
-        "Chunked into %s segment(s); section_style_markdown=%s",
+        "Chunked into %s segment(s); md_files=%s split_files=%s section_md=%s",
         len(chunks),
-        used_markdown,
+        len(md_docs),
+        len(other_docs),
+        section_style_markdown,
     )
     return chunks

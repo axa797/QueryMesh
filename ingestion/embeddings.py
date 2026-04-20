@@ -1,4 +1,4 @@
-"""Vertex AI text embeddings (``text-embedding-005``; batch 100)."""
+"""Vertex AI text embeddings (``text-embedding-005``; batched under request token caps)."""
 
 from __future__ import annotations
 
@@ -7,7 +7,9 @@ from functools import lru_cache
 
 log = logging.getLogger(__name__)
 
-_EMBED_BATCH = 100
+# Vertex embed API: total input tokens per request ~20k (see INVALID_ARGUMENT from batch too large).
+_EST_CHARS_PER_TOKEN = 3
+_MAX_REQUEST_TOKENS_BUDGET = 16_000
 
 
 @lru_cache(maxsize=8)
@@ -29,6 +31,11 @@ def _embed_batch_with_task(model, texts: list[str], for_query: bool) -> list[lis
     task = "RETRIEVAL_QUERY" if for_query else "RETRIEVAL_DOCUMENT"
     inputs = [TextEmbeddingInput(t, task) for t in texts]
     return [e.values for e in model.get_embeddings(inputs)]
+
+
+def _est_tokens(text: str) -> int:
+    """Conservative token estimate for batch budgeting (English-heavy docs)."""
+    return max(len(text) // _EST_CHARS_PER_TOKEN, 1)
 
 
 def embed_texts(
@@ -76,8 +83,25 @@ def embed_in_batches(
     for_query: bool = False,
 ) -> list[list[float]]:
     out: list[list[float]] = []
-    for i in range(0, len(texts), _EMBED_BATCH):
-        batch = texts[i : i + _EMBED_BATCH]
+    batch: list[str] = []
+    acc = 0
+    for t in texts:
+        et = _est_tokens(t)
+        if batch and acc + et > _MAX_REQUEST_TOKENS_BUDGET:
+            out.extend(
+                embed_texts(
+                    batch,
+                    project=project,
+                    location=location,
+                    model_id=model_id,
+                    for_query=for_query,
+                )
+            )
+            batch = []
+            acc = 0
+        batch.append(t)
+        acc += et
+    if batch:
         out.extend(
             embed_texts(
                 batch,

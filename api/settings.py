@@ -45,8 +45,8 @@ class Settings(BaseSettings):
     ingestion_gcp_docs_dir: str = ""
     ingestion_recreate_collection: bool = False
 
-    # §4 feature flag — prod on, local off
-    rag_vertex_rerank: bool = False
+    # §4 feature flag — Discovery Engine ranker after dense retrieval (enable API on project).
+    rag_vertex_rerank: bool = True
     # When rerank on: retrieve at least this many dense hits before semantic rank → top_k
     rag_rerank_candidate_limit: int = 20
     # Discovery Engine Rank API model (spec §6.2; requires Discovery Engine API enabled)

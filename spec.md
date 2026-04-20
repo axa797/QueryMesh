@@ -119,7 +119,7 @@ RAG Agent (retrieval at query time; optional Vertex reranker behind feature flag
 
 | Flag                | Prod default | Local default | Purpose                         |
 | ------------------- | ------------ | ------------- | ------------------------------- |
-| `RAG_VERTEX_RERANK` | on           | off           | Vertex reranker after retrieval |
+| `RAG_VERTEX_RERANK` | on           | on (set false for hermetic tests) | Vertex Discovery Engine reranker after retrieval |
 
 
 ---
