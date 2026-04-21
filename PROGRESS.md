@@ -75,6 +75,7 @@ Use GitHub task lists (`- [ ]` / `- [x]`) or turn each line into an issue. Recon
 
 ### Done recently (keep for audit trail)
 
+- **Account portal (optional):** Signup/login JWT + API key lifecycle — [`POST /account/register`](api/routes/account.py), `POST /account/login`, `POST|GET /account/api-keys`, `POST /account/api-keys/{id}/revoke`. Uses same `users` / `api_keys` tables as [`scripts/mint_api_key.py`](scripts/mint_api_key.py). Set **`PORTAL_JWT_SECRET`** in `.env` ([`.env.example`](.env.example)). Alembic **`003_user_portal_login`**: `users.email`, `users.password_hash`. **`POST /query`** still requires Bearer **API key** only (spec §8).
 - Local dev runbook + `prepare_local.sh`; `/health` includes real Qdrant ping ([memory/database.py](memory/database.py)).
 - Phase 2 CI, persisted ingest jobs, rerank, structured `/query` logs, demo HTML, corpus runbook — see Phase 2 block above.
 

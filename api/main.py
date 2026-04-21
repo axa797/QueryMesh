@@ -18,6 +18,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
 from api.rate_limit import limiter
+from api.routes import account as account_routes
 from api.routes import ingest as ingest_routes
 from api.routes import query as query_routes
 from api.runtime_info import build_capabilities, log_startup_capabilities
@@ -86,6 +87,7 @@ def rate_limit_exceeded_json(request: Request, exc: RateLimitExceeded):
 app.state.limiter = limiter
 app.add_middleware(SlowAPIMiddleware)
 _configure_cors(app)
+app.include_router(account_routes.router)
 app.include_router(query_routes.router)
 app.include_router(ingest_routes.router)
 

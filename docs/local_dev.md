@@ -25,6 +25,8 @@ PYTHONPATH=. uv run --env-file .env python scripts/mint_api_key.py
 
 Save the printed API key; it is shown once.
 
+**Optional — browser signup (same DB tables):** set **`PORTAL_JWT_SECRET`** in `.env` (see `.env.example`). Then use `POST /account/register` and `POST /account/login` for a portal JWT, and `POST /account/api-keys` (Bearer that JWT) to mint a raw key for **`POST /query`**.
+
 ## 3. Run the API
 
 ```bash
