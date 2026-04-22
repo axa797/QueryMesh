@@ -38,6 +38,7 @@ dependencies = [
 [dependency-groups]
 dev = [
   "httpx>=0.27",
+  "pytest-asyncio>=0.25",
   "ruff>=0.9",
   "pytest>=8",
 ]
@@ -88,3 +89,4 @@ markers = [
   "eval: RAGAS/DeepEval LLM evals; run nightly or with RUN_EVAL=1",
 ]
 addopts = ["-m", "not integration and not eval"]
+asyncio_mode = "auto"
