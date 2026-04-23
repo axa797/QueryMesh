@@ -47,6 +47,8 @@ All of `postgres`, `redis`, and `qdrant` should be `true` once compose is up. If
 2. Set `BASE_URL` to `http://127.0.0.1:8000` and `API_KEY` to the key from `mint_api_key.py`.
 3. Ensure the API process has `CORS_ALLOW_ORIGINS=*` (or your page origin) in `.env`.
 
+**Alternatively — Next.js UI:** from [web/README.md](../web/README.md): `cd web && cp .env.example .env.local && npm install && npm run dev` → [http://localhost:3000](http://localhost:3000). Register/login, mint keys, and chat against `POST /query`. The API needs **`PORTAL_JWT_SECRET`** and `CORS_ALLOW_ORIGINS` including `http://localhost:3000` (or `*` locally).
+
 ## 5. RAG corpus (optional)
 
 Without indexed PDFs, retrieval is empty; orchestrator/synthesizer may still run if `GOOGLE_CLOUD_PROJECT` is set.
