@@ -1,6 +1,10 @@
 # Local backing services only. Run API on host per docs/local_dev.md (uvicorn); Cloud Run: infra/README.md.
 # Keep Qdrant image within one minor of qdrant-client (pyproject) to avoid SDK warnings / protocol skew.
 # Usage: docker compose -f infra/docker-compose.yml up -d
+#
+# Optional web UI (Next.js): maps http://localhost:3000 — API URL is baked at image build time
+# (see web/Dockerfile). Default assumes FastAPI on the host at port 8000 (browser calls 127.0.0.1:8000).
+
 services:
   qdrant:
     image: qdrant/qdrant:v1.17.1
@@ -28,6 +32,15 @@ services:
       POSTGRES_DB: querymesh
     volumes:
       - postgres_data:/var/lib/postgresql/data
+
+  web:
+    build:
+      context: ..
+      dockerfile: web/Dockerfile
+      args:
+        NEXT_PUBLIC_QUERYMESH_URL: http://127.0.0.1:8000
+    ports:
+      - "3000:3000"
 
 volumes:
   qdrant_data:
