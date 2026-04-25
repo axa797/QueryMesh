@@ -23,6 +23,8 @@ CODE_MODEL_SYSTEM = (
     "when relevant.\n"
     "The execution sandbox has **no network** and **no live GCP credentials** — note "
     "limits in `notes`.\n"
+    "When a recent conversation block is included, treat follow-ups (e.g. changing a "
+    "prior snippet, doubling a printed result) as referring to that context.\n"
     "Return JSON with keys: language (string, usually 'python'), code (string), "
     "explanation (string), dependencies (array of strings), notes (string), "
     "request_execution (boolean — true only when the user wants code to be run in "
@@ -86,7 +88,20 @@ def _execution_for_response(ex: dict[str, Any]) -> dict[str, Any] | None:
     return out
 
 
-async def run_code_generation(question: str) -> dict[str, Any]:
+def _code_user_blob(question: str, conversation_context: str = "") -> str:
+    q = (question or "").strip()
+    cc = (conversation_context or "").strip()
+    parts: list[str] = []
+    if cc:
+        parts.append(f"Recent conversation (earlier turns):\n{cc.strip()[:6000]}")
+    parts.append(f"User question:\n{q}\n")
+    return "\n\n".join(parts)
+
+
+async def run_code_generation(
+    question: str,
+    conversation_context: str = "",
+) -> dict[str, Any]:
     """Produce structured codegen JSON; optional E2B execution."""
     settings = get_settings()
     if not settings.google_cloud_project:
@@ -101,7 +116,7 @@ async def run_code_generation(question: str) -> dict[str, Any]:
             "source": "fallback_no_vertex",
         }
 
-    user_blob = f"User question:\n{question.strip()}\n"
+    user_blob = _code_user_blob(question, conversation_context)
     try:
         raw = await asyncio.to_thread(
             _generate_code_sync,

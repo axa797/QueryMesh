@@ -66,7 +66,7 @@ def _generate_sql_sync(*, user_blob: str, model_id: str, project: str, location:
     return text
 
 
-async def run_analytics(question: str) -> dict[str, Any]:
+async def run_analytics(question: str, conversation_context: str = "") -> dict[str, Any]:
     """Generate SQL with Gemini, validate, execute on BigQuery (ADC)."""
     settings = get_settings()
     bq_proj, dataset = _bq_project_and_dataset(settings)
@@ -93,8 +93,12 @@ async def run_analytics(question: str) -> dict[str, Any]:
 
     schema = schema_prompt_fragment(project=bq_proj, dataset=dataset)
     fq = f"`{bq_proj}.{dataset}.doc_metadata`"
+    cc = (conversation_context or "").strip()
+    hist = f"Recent conversation (earlier turns):\n{cc[:4000]}\n\n" if cc else ""
     user_blob = (
-        f"{schema}\nUse this table id in your query: {fq}\n\nUser question:\n{question.strip()}\n"
+        f"{hist}"
+        f"{schema}\nUse this table id in your query: {fq}\n\n"
+        f"User question:\n{question.strip()}\n"
     )
 
     try:

@@ -7,6 +7,7 @@ import uuid
 from unittest.mock import AsyncMock, patch
 
 from graph.pipeline import build_query_graph
+from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.memory import MemorySaver
 
 
@@ -52,6 +53,7 @@ def test_full_linear_pipeline_mocked_llm_steps() -> None:
                     "user_id": uid,
                     "query": "hello",
                     "memory_compact": "prefers short answers",
+                    "messages": [HumanMessage(content="hello")],
                 },
                 config={"configurable": {"thread_id": "user-1:session-1"}},
             )

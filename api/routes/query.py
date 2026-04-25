@@ -6,6 +6,7 @@ import time
 
 from fastapi import APIRouter
 from graph.pipeline import get_compiled_query_graph
+from langchain_core.messages import HumanMessage
 from memory.longterm import compact_to_token_budget, load_top_k_memories
 from memory.redis_client import RedisDep
 from memory.session import get_session_factory
@@ -56,6 +57,7 @@ async def post_query(
                 "user_id": str(user_id),
                 "query": body.query,
                 "memory_compact": memory_compact,
+                "messages": [HumanMessage(content=body.query.strip())],
             },
             config=invoke_cfg,
         )

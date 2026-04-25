@@ -10,7 +10,7 @@ from api.deps import get_current_user_internal_id
 from api.main import app
 from fastapi.testclient import TestClient
 from memory.redis_client import redis_dependency
-from memory.session_envelope import thread_id_for
+from memory.session_envelope import envelope_key, thread_id_for
 
 
 class DictRedis:
@@ -44,7 +44,7 @@ def client_with_session_deps(fixed_user_id: uuid.UUID, monkeypatch: pytest.Monke
 
         return build_query_graph().compile(checkpointer=MemorySaver())
 
-    async def fake_route(_q: str, _mem: str) -> dict:
+    async def fake_route(_q: str, _mem: str, _ctx: str = "") -> dict:
         return {
             "intents": ["retrieval"],
             "rewritten_queries": {"retrieval": _q or "q"},
@@ -96,7 +96,8 @@ def test_mints_session_when_omitted(
     assert r.status_code == 200
     data = r.json()
     assert data["session_id"] != "stub"
-    assert len(fake.store) == 1
+    sid = uuid.UUID(data["session_id"])
+    assert envelope_key(sid) in fake.store
 
 
 def test_reuses_session(

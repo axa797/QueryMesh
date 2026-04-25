@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any
+from typing import Annotated, Any
 from uuid import UUID
 
 from agents.analytics_agent import run_analytics
@@ -11,22 +11,27 @@ from agents.code_agent import run_code_generation
 from agents.orchestrator import run_orchestrator
 from agents.rag_agent import run_rag_structured
 from agents.synthesizer import run_synthesizer
+from api.settings import get_settings
+from langchain_core.messages import AIMessage, AnyMessage
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-from langgraph.graph import END, START, StateGraph
+from langgraph.graph import END, START, StateGraph, add_messages
 from memory.checkpointer import get_checkpoint_pool
 from tools.retrieval_tool import retrieve_context
 from typing_extensions import TypedDict
+
+from graph.conversation import format_messages_compact, prior_messages_for_prompt
 
 _compiled_lock = asyncio.Lock()
 _compiled_graph: Any = None
 
 
 class QueryGraphState(TypedDict, total=False):
-    """Graph state: user query + long-term memory block + node outputs."""
+    """Graph state: checkpointed messages + per-turn fields + node outputs."""
 
     user_id: str
     query: str
     memory_compact: str
+    messages: Annotated[list[AnyMessage], add_messages]
     echo_reply: str
     orchestrator: dict[str, Any]
     retrieval_hits: list[dict[str, Any]]
@@ -34,6 +39,12 @@ class QueryGraphState(TypedDict, total=False):
     code_structured: dict[str, Any]
     rag_structured: dict[str, Any]
     synthesis: dict[str, Any]
+
+
+def _history_from_state(state: QueryGraphState) -> str:
+    prior = prior_messages_for_prompt(state)
+    cap = max(1, get_settings().graph_message_history_max)
+    return format_messages_compact(prior, max_messages=cap)
 
 
 def _intents(state: QueryGraphState) -> list[str]:
@@ -56,9 +67,11 @@ def echo_node(state: QueryGraphState) -> dict[str, str]:
 
 
 async def orchestrator_node(state: QueryGraphState) -> dict[str, dict[str, Any]]:
+    history = _history_from_state(state)
     plan = await run_orchestrator(
         state.get("query") or "",
         state.get("memory_compact") or "",
+        history,
     )
     return {"orchestrator": plan}
 
@@ -103,7 +116,8 @@ async def _analytics_branch(state: QueryGraphState) -> dict[str, Any]:
     if isinstance(rq, dict):
         rewritten = (rq.get("analytics") or "").strip()
     q = rewritten or (state.get("query") or "").strip()
-    out = await run_analytics(q)
+    ctx = _history_from_state(state)
+    out = await run_analytics(q, ctx)
     return {"analytics_structured": out}
 
 
@@ -116,7 +130,8 @@ async def _code_branch(state: QueryGraphState) -> dict[str, Any]:
     if isinstance(rq, dict):
         rewritten = (rq.get("code_generation") or "").strip()
     q = rewritten or (state.get("query") or "").strip()
-    out = await run_code_generation(q)
+    ctx = _history_from_state(state)
+    out = await run_code_generation(q, ctx)
     return {"code_structured": out}
 
 
@@ -162,10 +177,11 @@ async def rag_structured_node(state: QueryGraphState) -> dict[str, dict[str, Any
     return {"rag_structured": rag}
 
 
-async def synthesizer_node(state: QueryGraphState) -> dict[str, dict[str, Any]]:
+async def synthesizer_node(state: QueryGraphState) -> dict[str, Any]:
     uid_s = (state.get("user_id") or "").strip()
     if not uid_s:
         raise ValueError("query graph state requires user_id")
+    hist = _history_from_state(state)
     syn = await run_synthesizer(
         state.get("query") or "",
         state.get("memory_compact") or "",
@@ -174,8 +190,13 @@ async def synthesizer_node(state: QueryGraphState) -> dict[str, dict[str, Any]]:
         state.get("analytics_structured"),
         state.get("code_structured"),
         UUID(uid_s),
+        hist,
     )
-    return {"synthesis": syn}
+    msg_text = (syn.get("message") or "").strip()
+    out: dict[str, Any] = {"synthesis": syn}
+    if msg_text:
+        out["messages"] = [AIMessage(content=msg_text)]
+    return out
 
 
 def build_query_graph() -> StateGraph:

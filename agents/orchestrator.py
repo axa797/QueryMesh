@@ -32,7 +32,9 @@ ORCHESTRATOR_SYSTEM = (
     "(at most 3 distinct).\n"
     "- rewritten_queries: include one optimized string per intent key you return.\n"
     "- parallel: true if specialists can run concurrently, else false.\n"
-    "- Ambiguous or general knowledge questions default to retrieval only."
+    "- Ambiguous or general knowledge questions default to retrieval only.\n"
+    "- When recent conversation is included, use it for follow-ups (e.g. pronouns, "
+    '"double that", prior code or execution results).'
 )
 
 REPAIR_USER_TEMPLATE = (
@@ -148,20 +150,29 @@ def _generate_route_text(
     return t
 
 
-def _user_block(query: str, memory_compact: str) -> str:
+def _user_block(query: str, memory_compact: str, recent_conversation: str = "") -> str:
     q = (query or "").strip()
     mem = (memory_compact or "").strip()
+    rc = (recent_conversation or "").strip()
+    parts: list[str] = []
+    if rc:
+        parts.append(f"Recent conversation:\n{rc}")
+    parts.append(f"New query:\n{q}")
+    body = "\n\n".join(parts)
     if mem:
         return (
-            "User query:\n"
-            f"{q}\n\n"
+            f"{body}\n\n"
             "Optional long-term memory summary (routing context only; do not echo verbatim):\n"
             f"{mem[:4000]}"
         )
-    return f"User query:\n{q}"
+    return body
 
 
-async def run_orchestrator(query: str, memory_compact: str) -> dict[str, Any]:
+async def run_orchestrator(
+    query: str,
+    memory_compact: str,
+    recent_conversation: str = "",
+) -> dict[str, Any]:
     """Call Vertex Gemini once plus optional repair; on failure return RAG-only route."""
     settings = get_settings()
     project = settings.google_cloud_project
@@ -169,7 +180,7 @@ async def run_orchestrator(query: str, memory_compact: str) -> dict[str, Any]:
         log.info("Orchestrator: no google_cloud_project; RAG-only fallback")
         return rag_fallback_route(query, source="fallback_no_gcp")
 
-    user_first = _user_block(query, memory_compact)
+    user_first = _user_block(query, memory_compact, recent_conversation)
     model_id = settings.vertex_llm_model
     location = settings.google_cloud_location
     text = ""

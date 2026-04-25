@@ -27,6 +27,7 @@ SYNTH_SYSTEM = (
     "and key fields. "
     "When Code agent JSON includes Python and optional execution output, summarize the "
     "snippet and any stdout/stderr or exit code faithfully. "
+    "When recent conversation is included, align follow-up answers with those prior turns. "
     "Do not add facts not present in the agent outputs.\n"
     "Use short sections if helpful.\n"
     "Return JSON with keys: message (string), save_memory (null or object with memory_type "
@@ -70,6 +71,7 @@ def _offline_synthesis(
     code: dict[str, Any] | None,
     *,
     memory_saved: bool,
+    conversation_context: str = "",
 ) -> dict[str, Any]:
     ans = rag.get("answer") or ""
     cites = rag.get("citations") or []
@@ -85,6 +87,11 @@ def _offline_synthesis(
         cj = json.dumps(code, indent=2)[:6000]
         parts.append(f"Code agent:\n{cj}")
     msg = "\n\n".join(p for p in parts if p.strip())
+    cc = (conversation_context or "").strip()
+    if cc:
+        msg = f"Earlier turns:\n{cc[:4000]}\n\n{msg}".strip()
+    if not msg:
+        msg = f"(No synthesis) Query: {query[:500]}"
     return {
         "message": msg or f"(No synthesis) Query: {query[:500]}",
         "memory_saved": memory_saved,
@@ -100,14 +107,17 @@ def _synth_payload(
     rag: dict[str, Any],
     analytics: dict[str, Any] | None,
     code: dict[str, Any] | None,
+    conversation_context: str = "",
 ) -> str:
     mem = (memory_compact or "").strip()[:2000]
+    cc = (conversation_context or "").strip()[:8000]
     orch = json.dumps(orchestrator, indent=2)[:4000]
     ragj = json.dumps(rag, indent=2)[:8000]
     aj = json.dumps(analytics or {}, indent=2)[:8000]
     cj = json.dumps(code or {}, indent=2)[:8000]
     return (
         f"User query:\n{query.strip()}\n\n"
+        f"Recent conversation (earlier turns only):\n{cc or '(none)'}\n\n"
         f"Long-term memory summary (context only):\n{mem or '(none)'}\n\n"
         f"Orchestrator plan:\n{orch}\n\n"
         f"Structured RAG JSON:\n{ragj}\n\n"
@@ -144,6 +154,7 @@ async def run_synthesizer(
     analytics_structured: dict[str, Any] | None,
     code_structured: dict[str, Any] | None,
     user_id: UUID,
+    conversation_context: str = "",
 ) -> dict[str, Any]:
     """LLM synthesis + optional ``save_memory`` in one JSON response."""
     settings = get_settings()
@@ -155,6 +166,7 @@ async def run_synthesizer(
         rag_structured,
         analytics_structured,
         code_structured,
+        conversation_context,
     )
 
     memory_saved = False
@@ -167,6 +179,7 @@ async def run_synthesizer(
             analytics_structured,
             code_structured,
             memory_saved=False,
+            conversation_context=conversation_context,
         )
 
     try:
@@ -187,6 +200,7 @@ async def run_synthesizer(
             analytics_structured,
             code_structured,
             memory_saved=False,
+            conversation_context=conversation_context,
         )
 
     if parsed.save_memory is not None:
