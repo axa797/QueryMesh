@@ -72,3 +72,34 @@ def test_vertex_rerank_api_error_returns_dense_trim(three_hits: list[dict]) -> N
         out = retrieval_tool._apply_vertex_rerank("q", three_hits, project="p", top_k=2, model="m")
 
     assert out == three_hits[:2]
+
+
+def test_vertex_rerank_preflight_few_candidates() -> None:
+    skip = retrieval_tool._vertex_rerank_preflight_skip_reason
+    assert skip([], min_dense_score=None) == "few_candidates"
+    one = [{"text": "a", "source_doc": "x", "score": 0.9}]
+    assert skip(one, min_dense_score=None) == "few_candidates"
+
+
+def test_vertex_rerank_preflight_low_dense_score(three_hits: list[dict]) -> None:
+    skip = retrieval_tool._vertex_rerank_preflight_skip_reason
+    assert skip(three_hits, min_dense_score=0.95) == "low_dense_score"
+    assert skip(three_hits, min_dense_score=0.80) is None
+
+
+def test_vertex_rerank_preflight_no_min_uses_pool_size_only(three_hits: list[dict]) -> None:
+    skip = retrieval_tool._vertex_rerank_preflight_skip_reason
+    assert skip(three_hits, min_dense_score=None) is None
+
+
+def test_vertex_rerank_preflight_missing_top_score_allows_rerank() -> None:
+    skip = retrieval_tool._vertex_rerank_preflight_skip_reason
+    hits = [{"text": "a", "source_doc": "1"}, {"text": "b", "source_doc": "2", "score": 0.1}]
+    assert skip(hits, min_dense_score=0.99) is None
+
+
+def test_order_signature_detects_reorder(three_hits: list[dict]) -> None:
+    sig = retrieval_tool._order_signature
+    swapped = [three_hits[2], three_hits[0]]
+    assert sig(three_hits, 2) != sig(swapped, 2)
+    assert sig(three_hits, 2) == sig(three_hits, 2)

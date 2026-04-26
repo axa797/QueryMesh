@@ -19,6 +19,38 @@ _RERANK_POOL_CAP = 50
 _CONTENT_CHAR_SOFT_CAP = 7500
 
 
+def _vertex_rerank_preflight_skip_reason(
+    hits: list[dict[str, Any]],
+    *,
+    min_dense_score: float | None,
+) -> str | None:
+    """Return skip reason or None if rerank may proceed (subject to API)."""
+    if len(hits) < 2:
+        return "few_candidates"
+    if min_dense_score is None:
+        return None
+    top = hits[0].get("score")
+    if top is None:
+        return None
+    if float(top) < float(min_dense_score):
+        return "low_dense_score"
+    return None
+
+
+def _order_signature(hits: list[dict[str, Any]], k: int) -> tuple[tuple[str, str, str], ...]:
+    """Stable per-hit identity for comparing dense vs reranked top-k order."""
+    out: list[tuple[str, str, str]] = []
+    for h in hits[:k]:
+        out.append(
+            (
+                str(h.get("source_doc") or ""),
+                str(h.get("section") or ""),
+                (str(h.get("text") or ""))[:120],
+            )
+        )
+    return tuple(out)
+
+
 def _vertex_rerank_records(
     *,
     query: str,
@@ -170,6 +202,19 @@ async def retrieve_context(query: str, top_k: int = _TOP_K) -> list[dict[str, An
     if not settings.rag_vertex_rerank:
         return hits[:top_k]
 
+    skip = _vertex_rerank_preflight_skip_reason(
+        hits, min_dense_score=settings.rag_rerank_min_dense_score
+    )
+    if skip:
+        log.info(
+            "rag_rerank_skip reason=%s candidate_count=%s top_score=%s min_dense=%s",
+            skip,
+            len(hits),
+            hits[0].get("score") if hits else None,
+            settings.rag_rerank_min_dense_score,
+        )
+        return hits[:top_k]
+
     try:
         ranked = await asyncio.to_thread(
             _apply_vertex_rerank,
@@ -182,4 +227,12 @@ async def retrieve_context(query: str, top_k: int = _TOP_K) -> list[dict[str, An
     except Exception:
         log.exception("rag_rerank_fallback reason=unexpected")
         return hits[:top_k]
+
+    if _order_signature(hits, top_k) != _order_signature(ranked, top_k):
+        log.info(
+            "rag_rerank_order_changed top_k=%s dense_first=%s rerank_first=%s",
+            top_k,
+            (hits[0].get("source_doc"), hits[0].get("section")) if hits else None,
+            (ranked[0].get("source_doc"), ranked[0].get("section")) if ranked else None,
+        )
     return ranked
