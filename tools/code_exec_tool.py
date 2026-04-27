@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from typing import Any
 
 from api.settings import get_settings
@@ -54,6 +55,14 @@ async def exec_python(code: str) -> dict[str, Any]:
     """
     settings = get_settings()
     if not (settings.e2b_api_key or "").strip():
+        env_raw = os.environ.get("E2B_API_KEY")
+        log.warning(
+            "e2b skipped_no_key cwd=%s env_E2B_API_KEY_set=%s env_empty_or_missing=%s "
+            "(process env overrides .env; unset empty E2B_API_KEY to use .env file)",
+            os.getcwd(),
+            env_raw is not None,
+            env_raw is not None and not str(env_raw).strip(),
+        )
         return {
             "stdout": "",
             "stderr": "",
@@ -76,17 +85,18 @@ async def exec_python(code: str) -> dict[str, Any]:
     max_out = settings.code_exec_output_max_bytes
     wall = settings.code_exec_wall_seconds
     lifetime = max(30, int(settings.e2b_sandbox_timeout_seconds))
+    tmpl = (settings.e2b_template_id or "").strip() or None
 
     sem = _get_exec_semaphore()
     async with sem:
-        sandbox = await AsyncSandbox.create(
-            template=settings.e2b_template_id,
-            timeout=lifetime,
-            allow_internet_access=False,
-            envs={},
-            api_key=settings.e2b_api_key,
-        )
         try:
+            sandbox = await AsyncSandbox.create(
+                template=tmpl,
+                timeout=lifetime,
+                allow_internet_access=False,
+                envs={},
+                api_key=settings.e2b_api_key,
+            )
             async with sandbox:
                 await sandbox.files.write("/tmp/querymesh_user.py", text)
                 try:

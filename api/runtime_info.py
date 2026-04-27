@@ -49,6 +49,9 @@ def build_capabilities(settings: Settings) -> dict[str, Any]:
             "Unset GOOGLE_CLOUD_PROJECT for heuristic local mode, or run "
             "'gcloud auth application-default login' with a valid project."
         )
+    out["e2b_sandbox_configured"] = bool(
+        (settings.e2b_api_key or "").strip(),
+    )
     return out
 
 

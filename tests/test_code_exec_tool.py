@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
-from e2b.exceptions import TimeoutException
+from e2b.exceptions import SandboxException, TimeoutException
 from tools import code_exec_tool as cet
 
 
@@ -65,3 +65,26 @@ def test_exec_python_maps_command_timeout(monkeypatch: pytest.MonkeyPatch) -> No
     r = asyncio.run(cet.exec_python("print(1)"))
     assert r["source"] == "e2b_timeout"
     assert "timeout" in (r.get("stderr") or "").lower()
+
+
+def test_exec_python_create_template_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    class S:
+        e2b_api_key = "fake"
+        e2b_template_id = "nonexistent-template"
+        e2b_sandbox_timeout_seconds = 120
+        code_exec_wall_seconds = 15.0
+        code_exec_output_max_bytes = 65536
+        code_exec_max_concurrent = 2
+        code_exec_max_code_chars = 200_000
+
+    class _AS:
+        @staticmethod
+        async def create(**_kwargs: object) -> object:
+            raise SandboxException("404: template 'nonexistent-template' not found")
+
+    monkeypatch.setattr(cet, "get_settings", lambda: S())
+    monkeypatch.setattr(cet, "_exec_sem", None)
+    monkeypatch.setattr(cet, "AsyncSandbox", _AS)
+    r = asyncio.run(cet.exec_python("print(1)"))
+    assert r["source"] == "e2b_error"
+    assert "404" in (r.get("stderr") or "")

@@ -59,6 +59,11 @@ def _response_text(resp: Any) -> str:
     return ""
 
 
+def _is_vertex_resource_exhausted(exc: BaseException) -> bool:
+    s = str(exc).upper()
+    return "RESOURCE_EXHAUSTED" in s or "429" in s and "RESOURCE" in s
+
+
 def _generate_code_sync(*, user_blob: str, model_id: str, project: str, location: str) -> str:
     client = vertex_client(project, location)
     cfg = types.GenerateContentConfig(
@@ -132,6 +137,22 @@ async def run_code_generation(
             log.warning("Code agent generation failed: %s", e, exc_info=True)
         else:
             log.warning("Code agent generation failed: %s", e)
+        if _is_vertex_resource_exhausted(e):
+            return {
+                "language": "python",
+                "code": None,
+                "explanation": "",
+                "dependencies": [],
+                "notes": str(e),
+                "execution": None,
+                "interpretation": (
+                    "Vertex AI returned 429 RESOURCE_EXHAUSTED (quota or throughput limit). "
+                    "Wait a minute and retry, lower parallel LLM work (e.g. set "
+                    "RAG_VERTEX_RERANK=false), or raise quotas. Details: "
+                    "https://cloud.google.com/vertex-ai/generative-ai/docs/error-code-429"
+                ),
+                "source": "vertex_rate_limit",
+            }
         return {
             "language": "python",
             "code": None,
