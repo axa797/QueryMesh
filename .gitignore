@@ -15,3 +15,6 @@ build/
 
 # Local GCP documentation PDFs (Phase 2 corpus; not committed)
 corpus/
+
+# Next.js generated types (regenerate via `next dev` / `next build` in web/)
+web/next-env.d.ts
