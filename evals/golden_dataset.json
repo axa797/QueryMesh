@@ -2,241 +2,211 @@
   {
     "id": "ret-01",
     "category": "retrieval",
-    "question": "Retrieval Q1: What does GCP service S1 primarily provide?",
-    "reference_answer": "Service S1 provides managed infrastructure for workload type 1.",
-    "contexts": [
-      "Service S1 is a Google Cloud offering for scalable workloads.",
-      "Documentation states S1 provides managed infrastructure for workload type 1."
-    ]
+    "question": "What are the two new TPU chip variants announced at Google Cloud Next '26 and how do their architectures differ?",
+    "reference_answer": "Google Cloud announced TPU 8t and TPU 8i at Next '26. TPU 8t is optimized for training: it uses new Inter-Chip Interconnect (ICI) technology to scale up to 9,600 TPUs and 2 petabytes of shared high-bandwidth memory in a single superpod, delivering three times the processing power of Ironwood and up to double the performance per watt. TPU 8i is optimized for inference: it uses the new Boardfly topology to directly connect 1,152 TPUs in a single pod, features three times more on-chip SRAM compared to previous versions, and delivers 80% better performance per dollar for inference than the prior generation.",
+    "contexts": []
   },
   {
     "id": "ret-02",
     "category": "retrieval",
-    "question": "Retrieval Q2: What does GCP service S2 primarily provide?",
-    "reference_answer": "Service S2 provides managed infrastructure for workload type 2.",
-    "contexts": [
-      "Service S2 is a Google Cloud offering for scalable workloads.",
-      "Documentation states S2 provides managed infrastructure for workload type 2."
-    ]
+    "question": "What is Agent Memory Bank in the Gemini Enterprise Agent Platform and what are Memory Profiles?",
+    "reference_answer": "Agent Memory Bank is a capability in the Gemini Enterprise Agent Platform that dynamically generates and curates long-term memories from agent conversations, enabling agents to maintain persistent context across sessions. Memory Profiles are a feature within Memory Bank that allow agents to recall high-accuracy details with low latency, ensuring that context is never lost between interactions. Together they move agents beyond temporary session data toward high-accuracy, persistent context that supports personalized interactions.",
+    "contexts": []
   },
   {
     "id": "ret-03",
     "category": "retrieval",
-    "question": "Retrieval Q3: What does GCP service S3 primarily provide?",
-    "reference_answer": "Service S3 provides managed infrastructure for workload type 3.",
-    "contexts": [
-      "Service S3 is a Google Cloud offering for scalable workloads.",
-      "Documentation states S3 provides managed infrastructure for workload type 3."
-    ]
+    "question": "What is Agent Gateway in the Gemini Enterprise Agent Platform and how does it protect against security threats like prompt injection?",
+    "reference_answer": "Agent Gateway acts as the air traffic control for an enterprise's agent ecosystem. It provides secure, unified connectivity between agents and tools across any environment while enforcing consistent security policies. Agent Gateway applies Model Armor protections to safeguard against prompt injection and data leakage. It routes and monitors agent-to-tool communication from a single control point, ensuring every agent operates within enterprise-grade guardrails regardless of where it was built.",
+    "contexts": []
   },
   {
     "id": "ret-04",
     "category": "retrieval",
-    "question": "Retrieval Q4: What does GCP service S4 primarily provide?",
-    "reference_answer": "Service S4 provides managed infrastructure for workload type 4.",
-    "contexts": [
-      "Service S4 is a Google Cloud offering for scalable workloads.",
-      "Documentation states S4 provides managed infrastructure for workload type 4."
-    ]
+    "question": "What is Knowledge Catalog in the Agentic Data Cloud and how does it ground agents in business data?",
+    "reference_answer": "Knowledge Catalog constructs a unified, dynamic context graph of an entire business, enabling agents to be grounded in all business data and semantics. It integrates with Smart Storage and the Object Context API so that files in Google Cloud Storage are instantly tagged and enriched with metadata before an agent touches them. Knowledge Catalog is also integrated with Gemini's Deep Research Agent, making it a central hub that connects structured and unstructured enterprise data for agent consumption.",
+    "contexts": []
   },
   {
     "id": "ret-05",
     "category": "retrieval",
-    "question": "Retrieval Q5: What does GCP service S5 primarily provide?",
-    "reference_answer": "Service S5 provides managed infrastructure for workload type 0.",
-    "contexts": [
-      "Service S5 is a Google Cloud offering for scalable workloads.",
-      "Documentation states S5 provides managed infrastructure for workload type 0."
-    ]
+    "question": "What is Lightning Engine for Apache Spark and what performance improvements does it offer over open-source alternatives?",
+    "reference_answer": "Lightning Engine for Apache Spark is a real-time, serverless engine for large-scale data processing announced as part of the Agentic Data Cloud at Next '26. It is up to 4.5 times faster than open-source Apache Spark alternatives and offers up to double the price-performance over the leading competitor for large datasets. It is designed to support the high-throughput data workloads that AI agents require.",
+    "contexts": []
   },
   {
     "id": "ret-06",
     "category": "retrieval",
-    "question": "Retrieval Q6: What does GCP service S6 primarily provide?",
-    "reference_answer": "Service S6 provides managed infrastructure for workload type 1.",
-    "contexts": [
-      "Service S6 is a Google Cloud offering for scalable workloads.",
-      "Documentation states S6 provides managed infrastructure for workload type 1."
-    ]
+    "question": "How does Agent Identity improve the security posture of agents in the Gemini Enterprise Agent Platform?",
+    "reference_answer": "Agent Identity improves agent security by assigning every agent a unique cryptographic ID. This creates a clear, auditable trail for every action an agent takes, mapped back to defined authorization policies. Whether an agent is built on Agent Platform or sourced from a partner ecosystem, it receives a verifiable identity that enables fine-grained access control and accountability at the individual agent level.",
+    "contexts": []
   },
   {
     "id": "ret-07",
     "category": "retrieval",
-    "question": "Retrieval Q7: What does GCP service S7 primarily provide?",
-    "reference_answer": "Service S7 provides managed infrastructure for workload type 2.",
-    "contexts": [
-      "Service S7 is a Google Cloud offering for scalable workloads.",
-      "Documentation states S7 provides managed infrastructure for workload type 2."
-    ]
+    "question": "What is Agent Simulation in the Gemini Enterprise Agent Platform and how does it test agents before deployment?",
+    "reference_answer": "Agent Simulation is a testing capability in the Gemini Enterprise Agent Platform's Optimize layer. It tests agents against human-like synthetic user interactions and virtualized tools in a controlled, pre-production environment. Agents are automatically scored based on task success and safety across multi-step conversations, allowing teams to catch failures before they affect real users. It is part of the broader Agent Evaluation and Agent Observability suite for guaranteeing agent quality.",
+    "contexts": []
   },
   {
     "id": "ret-08",
     "category": "retrieval",
-    "question": "Retrieval Q8: What does GCP service S8 primarily provide?",
-    "reference_answer": "Service S8 provides managed infrastructure for workload type 3.",
-    "contexts": [
-      "Service S8 is a Google Cloud offering for scalable workloads.",
-      "Documentation states S8 provides managed infrastructure for workload type 3."
-    ]
+    "question": "What is the Cross-Cloud Lakehouse announced at Next '26 and what open data format does it use?",
+    "reference_answer": "Cross-Cloud Lakehouse is a feature of the Agentic Data Cloud announced at Google Cloud Next '26. It is based on Apache Iceberg and lets organizations query data stored in Amazon Web Services or Microsoft Azure without having to copy it to Google Cloud. This enables a true multi-cloud data architecture where agents and analytics workloads can access data wherever it lives while using a unified open table format.",
+    "contexts": []
   },
   {
     "id": "ret-09",
     "category": "retrieval",
-    "question": "Retrieval Q9: What does GCP service S9 primarily provide?",
-    "reference_answer": "Service S9 provides managed infrastructure for workload type 4.",
-    "contexts": [
-      "Service S9 is a Google Cloud offering for scalable workloads.",
-      "Documentation states S9 provides managed infrastructure for workload type 4."
-    ]
+    "question": "What is Google Cloud Fraud Defense, what product does it evolve from, and what is its availability status?",
+    "reference_answer": "Google Cloud Fraud Defense is the evolution of reCAPTCHA, Google Cloud's prior bot-detection product. It is a platform designed to discern the legitimacy and authorization of bots, humans, and agents interacting with web services, addressing the reality that AI agents now perform actions that previously only humans did. Google Cloud Fraud Defense was announced as generally available at Google Cloud Next '26.",
+    "contexts": []
   },
   {
     "id": "ret-10",
     "category": "retrieval",
-    "question": "Retrieval Q10: What does GCP service S10 primarily provide?",
-    "reference_answer": "Service S10 provides managed infrastructure for workload type 0.",
-    "contexts": [
-      "Service S10 is a Google Cloud offering for scalable workloads.",
-      "Documentation states S10 provides managed infrastructure for workload type 0."
-    ]
+    "question": "What enhancement to the Agent Development Kit (ADK) was announced at Next '26 and what new programming model does it introduce?",
+    "reference_answer": "At Next '26, the Agent Development Kit (ADK) was upgraded with a new graph-based framework that allows developers to organize agents into a network of sub-agents. This framework enables clear, reliable logic for how agents work together to solve complex problems, supporting both deterministic and generative orchestration patterns. Over six trillion tokens are processed monthly on Gemini models through ADK. It also adds multimodal streaming for real-time live audio and video interactions and workspaces as hardened sandboxed environments for agents to run commands safely.",
+    "contexts": []
   },
   {
     "id": "code-01",
     "category": "code_generation",
-    "question": "Code Q1: Write Python to list Cloud Storage buckets in project P1.",
-    "reference_answer": "Use google.cloud.storage.Client(project='P1').list_buckets().",
+    "question": "Write Python using the Google Cloud Agent Development Kit (ADK) to create a basic agent that answers questions about GCP services.",
+    "reference_answer": "from google.adk.agents import Agent\nfrom google.adk.runners import Runner\nfrom google.adk.sessions import InMemorySessionService\nfrom google.genai import types\n\nroot_agent = Agent(\n    name='gcp_assistant',\n    model='gemini-2.5-flash',\n    description='Answers questions about Google Cloud services.',\n    instruction='You are a helpful Google Cloud expert. Answer questions accurately based on your knowledge of GCP services.',\n)\n\nsession_service = InMemorySessionService()\nrunner = Runner(agent=root_agent, app_name='gcp_assistant', session_service=session_service)\n\nuser_id = 'user_1'\nsession_id = 'session_1'\nsession_service.create_session(app_name='gcp_assistant', user_id=user_id, session_id=session_id)\n\ncontent = types.Content(role='user', parts=[types.Part(text='What is Cloud Run?')])\nfor event in runner.run(user_id=user_id, session_id=session_id, new_message=content):\n    if event.is_final_response():\n        print(event.content.parts[0].text)",
     "contexts": []
   },
   {
     "id": "code-02",
     "category": "code_generation",
-    "question": "Code Q2: Write Python to list Cloud Storage buckets in project P2.",
-    "reference_answer": "Use google.cloud.storage.Client(project='P2').list_buckets().",
+    "question": "Write Python to configure Agent Sessions with a Custom Session ID using the Gemini Enterprise Agent Platform SDK.",
+    "reference_answer": "from google.adk.sessions import DatabaseSessionService\n\n# Use a custom session ID that maps to your internal CRM/database record.\nsession_service = DatabaseSessionService(db_url='postgresql+asyncpg://user:pass@localhost/sessions')\n\n# Create a session using your own identifier (e.g., a CRM customer ID).\ncustom_session_id = 'crm_customer_98765'\napp_name = 'customer_support_agent'\nuser_id = 'user_abc'\n\nsession = session_service.create_session(\n    app_name=app_name,\n    user_id=user_id,\n    session_id=custom_session_id,\n)\nprint(f'Session created: {session.id}')\n\n# Retrieve session by custom ID later.\nexisting_session = session_service.get_session(\n    app_name=app_name,\n    user_id=user_id,\n    session_id=custom_session_id,\n)\nprint(f'Resumed session events: {len(existing_session.events)}')",
     "contexts": []
   },
   {
     "id": "code-03",
     "category": "code_generation",
-    "question": "Code Q3: Write Python to list Cloud Storage buckets in project P3.",
-    "reference_answer": "Use google.cloud.storage.Client(project='P3').list_buckets().",
+    "question": "Write Python to call the Gemini 3.1 Flash model via the Google Cloud Vertex AI SDK for a text generation task.",
+    "reference_answer": "import vertexai\nfrom vertexai.generative_models import GenerativeModel\n\nvertexai.init(project='your-project-id', location='us-central1')\n\nmodel = GenerativeModel('gemini-3.1-flash')\n\nresponse = model.generate_content(\n    'Explain the difference between Cloud Run and GKE in three sentences.',\n    generation_config={\n        'temperature': 0.2,\n        'max_output_tokens': 512,\n    },\n)\nprint(response.text)",
     "contexts": []
   },
   {
     "id": "code-04",
     "category": "code_generation",
-    "question": "Code Q4: Write Python to list Cloud Storage buckets in project P4.",
-    "reference_answer": "Use google.cloud.storage.Client(project='P4').list_buckets().",
+    "question": "Write Python to build a multi-agent pipeline using ADK's graph-based framework with one orchestrator agent delegating to two specialist sub-agents.",
+    "reference_answer": "from google.adk.agents import Agent, LlmAgent\nfrom google.adk.runners import Runner\nfrom google.adk.sessions import InMemorySessionService\n\n# Define specialist sub-agents.\ndocs_agent = LlmAgent(\n    name='docs_specialist',\n    model='gemini-2.5-flash',\n    instruction='You answer questions about GCP documentation and architecture.',\n)\n\ncode_agent = LlmAgent(\n    name='code_specialist',\n    model='gemini-2.5-flash',\n    instruction='You write and explain Python code that uses Google Cloud APIs.',\n)\n\n# Orchestrator delegates to sub-agents via the graph framework.\norchestrator = Agent(\n    name='orchestrator',\n    model='gemini-2.5-flash',\n    description='Routes user queries to the appropriate specialist agent.',\n    instruction='Determine whether the user wants documentation or code, then delegate.',\n    sub_agents=[docs_agent, code_agent],\n)\n\nsession_service = InMemorySessionService()\nrunner = Runner(agent=orchestrator, app_name='multi_agent', session_service=session_service)\nprint('Multi-agent pipeline ready.')",
     "contexts": []
   },
   {
     "id": "code-05",
     "category": "code_generation",
-    "question": "Code Q5: Write Python to list Cloud Storage buckets in project P5.",
-    "reference_answer": "Use google.cloud.storage.Client(project='P5').list_buckets().",
+    "question": "Write Python to configure and query Agent Memory Bank using Memory Profiles in the Gemini Enterprise Agent Platform.",
+    "reference_answer": "from google.adk.memory import VertexAiMemoryBankService\nfrom google.adk.agents import Agent\nfrom google.adk.runners import Runner\nfrom google.adk.sessions import InMemorySessionService\n\n# Configure Memory Bank backed by Vertex AI.\nmemory_service = VertexAiMemoryBankService(\n    project='your-project-id',\n    location='us-central1',\n)\n\nagent = Agent(\n    name='memory_agent',\n    model='gemini-2.5-flash',\n    instruction='Use memory to personalize responses for returning users.',\n    memory_service=memory_service,\n)\n\nsession_service = InMemorySessionService()\nrunner = Runner(agent=agent, app_name='memory_demo', session_service=session_service)\n\n# After a conversation, memories are persisted and recalled automatically on subsequent runs.\nprint('Memory Bank configured.')",
     "contexts": []
   },
   {
     "id": "code-06",
     "category": "code_generation",
-    "question": "Code Q6: Write Python to list Cloud Storage buckets in project P6.",
-    "reference_answer": "Use google.cloud.storage.Client(project='P6').list_buckets().",
+    "question": "Write Python to register an agent in the Agent Registry using the Gemini Enterprise Agent Platform API.",
+    "reference_answer": "from google.cloud import agentplatform_v1\n\nclient = agentplatform_v1.AgentRegistryClient(\n    client_options={'api_endpoint': 'us-central1-agentplatform.googleapis.com'}\n)\n\nparent = f'projects/your-project-id/locations/us-central1'\n\nagent = agentplatform_v1.Agent(\n    display_name='Customer Support Agent',\n    description='Handles customer inquiries using Gemini 3.1 Flash.',\n    labels={'team': 'cx', 'environment': 'production'},\n)\n\ncreated_agent = client.create_agent(parent=parent, agent=agent)\nprint(f'Agent registered: {created_agent.name}')",
     "contexts": []
   },
   {
     "id": "code-07",
     "category": "code_generation",
-    "question": "Code Q7: Write Python to list Cloud Storage buckets in project P7.",
-    "reference_answer": "Use google.cloud.storage.Client(project='P7').list_buckets().",
+    "question": "Write Python to use Agent Sandbox to execute model-generated code safely in a hardened environment.",
+    "reference_answer": "from google.adk.code_executors import VertexAiCodeExecutor\nfrom google.adk.agents import LlmAgent\nfrom google.adk.runners import Runner\nfrom google.adk.sessions import InMemorySessionService\n\n# Agent Sandbox provides an isolated environment for executing model-generated code.\ncode_executor = VertexAiCodeExecutor(\n    project='your-project-id',\n    location='us-central1',\n)\n\nagent = LlmAgent(\n    name='code_executor_agent',\n    model='gemini-2.5-flash',\n    instruction='Generate and execute Python code to answer data analysis questions.',\n    code_executor=code_executor,\n)\n\nsession_service = InMemorySessionService()\nrunner = Runner(agent=agent, app_name='sandbox_demo', session_service=session_service)\nprint('Agent Sandbox executor configured.')",
     "contexts": []
   },
   {
     "id": "code-08",
     "category": "code_generation",
-    "question": "Code Q8: Write Python to list Cloud Storage buckets in project P8.",
-    "reference_answer": "Use google.cloud.storage.Client(project='P8').list_buckets().",
+    "question": "Write Python to list models available in Model Garden using the Vertex AI SDK.",
+    "reference_answer": "import vertexai\nfrom vertexai.preview.model_garden import open_models\n\nvertexai.init(project='your-project-id', location='us-central1')\n\n# List publisher models accessible via Model Garden.\nfrom google.cloud import aiplatform\nclient = aiplatform.gapic.ModelGardenServiceClient(\n    client_options={'api_endpoint': 'us-central1-aiplatform.googleapis.com'}\n)\n\nparent = 'publishers/google'\nfor model in client.list_publisher_models(parent=parent):\n    print(model.name, model.version_id)",
     "contexts": []
   },
   {
     "id": "code-09",
     "category": "code_generation",
-    "question": "Code Q9: Write Python to list Cloud Storage buckets in project P9.",
-    "reference_answer": "Use google.cloud.storage.Client(project='P9').list_buckets().",
+    "question": "Write Python to run a PySpark job using the Lightning Engine for Apache Spark on Google Cloud Dataproc Serverless.",
+    "reference_answer": "from google.cloud import dataproc_v1\n\nclient = dataproc_v1.BatchControllerClient(\n    client_options={'api_endpoint': 'us-central1-dataproc.googleapis.com'}\n)\n\n# Lightning Engine is enabled via the runtime_config version.\nbatch = dataproc_v1.Batch(\n    pyspark_batch=dataproc_v1.PySparkBatch(\n        main_python_file_uri='gs://your-bucket/jobs/process_data.py',\n    ),\n    runtime_config=dataproc_v1.RuntimeConfig(\n        version='2.3',  # Lightning Engine available in Dataproc 2.3+\n        properties={\n            'spark.dataproc.lightning.enabled': 'true',\n        },\n    ),\n    environment_config=dataproc_v1.EnvironmentConfig(\n        execution_config=dataproc_v1.ExecutionConfig(\n            subnetwork_uri='projects/your-project/regions/us-central1/subnetworks/default',\n        )\n    ),\n)\n\noperation = client.create_batch(\n    parent='projects/your-project-id/locations/us-central1',\n    batch=batch,\n    batch_id='lightning-batch-001',\n)\nresult = operation.result()\nprint(f'Batch completed: {result.name}')",
     "contexts": []
   },
   {
     "id": "code-10",
     "category": "code_generation",
-    "question": "Code Q10: Write Python to list Cloud Storage buckets in project P10.",
-    "reference_answer": "Use google.cloud.storage.Client(project='P10').list_buckets().",
+    "question": "Write Python to query Cross-Cloud Lakehouse data stored in Amazon S3 using Apache Iceberg via BigQuery Omni.",
+    "reference_answer": "from google.cloud import bigquery\n\nclient = bigquery.Client(project='your-project-id')\n\n# Create an external table pointing to the Iceberg metadata in S3.\ncreate_table_sql = \"\"\"\nCREATE OR REPLACE EXTERNAL TABLE `your_project.your_dataset.s3_iceberg_orders`\nWITH CONNECTION `aws-us-east-1.your-aws-connection`\nOPTIONS (\n  format = 'ICEBERG',\n  uris = ['s3://your-bucket/warehouse/orders/']\n);\n\"\"\"\n\nclient.query(create_table_sql).result()\n\n# Query the Iceberg table from S3 as if it were a native BigQuery table.\nquery = \"\"\"\nSELECT order_date, COUNT(*) AS order_count, SUM(total_amount) AS revenue\nFROM `your_project.your_dataset.s3_iceberg_orders`\nWHERE order_date >= '2026-01-01'\nGROUP BY order_date\nORDER BY order_date DESC\nLIMIT 30\n\"\"\"\nfor row in client.query(query):\n    print(row.order_date, row.order_count, row.revenue)",
     "contexts": []
   },
   {
-    "id": "ana-01",
+    "id": "analytics-01",
     "category": "analytics",
-    "question": "Analytics Q1: How many docs have product_area = 'Compute' in metadata?",
-    "reference_answer": "Expect a SELECT COUNT with filter product_area = 'Compute' (case 1).",
+    "question": "Write a BigQuery SQL query to analyze agent execution latency percentiles (p50, p95, p99) from Agent Observability logs exported to BigQuery.",
+    "reference_answer": "SELECT\n  DATE(timestamp) AS log_date,\n  agent_name,\n  APPROX_QUANTILES(latency_ms, 100)[OFFSET(50)] AS p50_latency_ms,\n  APPROX_QUANTILES(latency_ms, 100)[OFFSET(95)] AS p95_latency_ms,\n  APPROX_QUANTILES(latency_ms, 100)[OFFSET(99)] AS p99_latency_ms,\n  COUNT(*) AS execution_count\nFROM `your_project.agent_observability.execution_traces`\nWHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY)\n  AND status = 'COMPLETED'\nGROUP BY log_date, agent_name\nORDER BY log_date DESC, p95_latency_ms DESC",
     "contexts": []
   },
   {
-    "id": "ana-02",
+    "id": "analytics-02",
     "category": "analytics",
-    "question": "Analytics Q2: How many docs have product_area = 'Compute' in metadata?",
-    "reference_answer": "Expect a SELECT COUNT with filter product_area = 'Compute' (case 2).",
+    "question": "Write a BigQuery SQL query to track model usage frequency across Gemini models in the Agent Platform over the last 30 days.",
+    "reference_answer": "SELECT\n  model_id,\n  COUNT(*) AS invocation_count,\n  SUM(input_tokens) AS total_input_tokens,\n  SUM(output_tokens) AS total_output_tokens,\n  ROUND(AVG(latency_ms), 2) AS avg_latency_ms,\n  ROUND(SUM(cost_usd), 4) AS total_cost_usd\nFROM `your_project.agent_platform.model_invocations`\nWHERE invocation_timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)\nGROUP BY model_id\nORDER BY invocation_count DESC",
     "contexts": []
   },
   {
-    "id": "ana-03",
+    "id": "analytics-03",
     "category": "analytics",
-    "question": "Analytics Q3: How many docs have product_area = 'Compute' in metadata?",
-    "reference_answer": "Expect a SELECT COUNT with filter product_area = 'Compute' (case 3).",
+    "question": "Write a BigQuery SQL query to find agents with anomalous response times using Agent Platform observability data, flagging executions beyond 3 standard deviations from the mean.",
+    "reference_answer": "WITH agent_stats AS (\n  SELECT\n    agent_id,\n    AVG(latency_ms) AS mean_latency,\n    STDDEV(latency_ms) AS stddev_latency\n  FROM `your_project.agent_observability.execution_traces`\n  WHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 24 HOUR)\n  GROUP BY agent_id\n)\nSELECT\n  t.trace_id,\n  t.agent_id,\n  t.latency_ms,\n  s.mean_latency,\n  s.stddev_latency,\n  ROUND((t.latency_ms - s.mean_latency) / NULLIF(s.stddev_latency, 0), 2) AS z_score,\n  t.timestamp\nFROM `your_project.agent_observability.execution_traces` t\nJOIN agent_stats s USING (agent_id)\nWHERE t.timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 24 HOUR)\n  AND ABS((t.latency_ms - s.mean_latency) / NULLIF(s.stddev_latency, 0)) > 3\nORDER BY ABS((t.latency_ms - s.mean_latency) / NULLIF(s.stddev_latency, 0)) DESC",
     "contexts": []
   },
   {
-    "id": "ana-04",
+    "id": "analytics-04",
     "category": "analytics",
-    "question": "Analytics Q4: How many docs have product_area = 'Compute' in metadata?",
-    "reference_answer": "Expect a SELECT COUNT with filter product_area = 'Compute' (case 4).",
+    "question": "Write a BigQuery SQL query to monitor Cloud Run instance scaling patterns for the Gemini Enterprise Agent Platform API service over the past 7 days.",
+    "reference_answer": "SELECT\n  TIMESTAMP_TRUNC(timestamp, HOUR) AS hour_bucket,\n  resource.labels.service_name AS service_name,\n  resource.labels.revision_name AS revision_name,\n  MAX(CAST(JSON_EXTRACT_SCALAR(json_payload, '$.instance_count') AS INT64)) AS max_instances,\n  MIN(CAST(JSON_EXTRACT_SCALAR(json_payload, '$.instance_count') AS INT64)) AS min_instances,\n  AVG(CAST(JSON_EXTRACT_SCALAR(json_payload, '$.instance_count') AS FLOAT64)) AS avg_instances\nFROM `your_project.cloud_run_logs.cloudrun_googleapis_com_requests`\nWHERE timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY)\n  AND resource.type = 'cloud_run_revision'\n  AND resource.labels.service_name = 'api'\nGROUP BY hour_bucket, service_name, revision_name\nORDER BY hour_bucket DESC",
     "contexts": []
   },
   {
-    "id": "ana-05",
+    "id": "analytics-05",
     "category": "analytics",
-    "question": "Analytics Q5: How many docs have product_area = 'Compute' in metadata?",
-    "reference_answer": "Expect a SELECT COUNT with filter product_area = 'Compute' (case 5).",
+    "question": "Write a BigQuery SQL query to join agent session data with user interaction records to find the most common user intents handled by the agent fleet.",
+    "reference_answer": "SELECT\n  i.intent_label,\n  COUNT(*) AS intent_count,\n  ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), 2) AS intent_pct,\n  ROUND(AVG(s.session_duration_seconds), 1) AS avg_session_duration_sec,\n  COUNTIF(s.task_completed) AS completions,\n  ROUND(COUNTIF(s.task_completed) * 100.0 / COUNT(*), 1) AS completion_rate_pct\nFROM `your_project.agent_sessions.sessions` s\nJOIN `your_project.agent_sessions.interactions` i\n  ON s.session_id = i.session_id\nWHERE s.session_start >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)\nGROUP BY i.intent_label\nORDER BY intent_count DESC\nLIMIT 20",
     "contexts": []
   },
   {
-    "id": "ana-06",
+    "id": "analytics-06",
     "category": "analytics",
-    "question": "Analytics Q6: How many docs have product_area = 'Compute' in metadata?",
-    "reference_answer": "Expect a SELECT COUNT with filter product_area = 'Compute' (case 6).",
+    "question": "Write a BigQuery SQL query to compare TPU 8t training workload throughput versus TPU 8i inference throughput from workload performance logs.",
+    "reference_answer": "SELECT\n  tpu_variant,\n  workload_type,\n  COUNT(*) AS job_count,\n  ROUND(AVG(throughput_tokens_per_sec), 0) AS avg_throughput,\n  ROUND(AVG(cost_per_1k_tokens_usd), 6) AS avg_cost_per_1k_tokens,\n  ROUND(AVG(performance_per_watt), 2) AS avg_perf_per_watt,\n  ROUND(AVG(utilization_pct), 1) AS avg_utilization_pct\nFROM `your_project.tpu_workloads.job_metrics`\nWHERE job_start >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)\n  AND tpu_variant IN ('tpu-8t', 'tpu-8i')\nGROUP BY tpu_variant, workload_type\nORDER BY tpu_variant, workload_type",
     "contexts": []
   },
   {
-    "id": "ana-07",
+    "id": "analytics-07",
     "category": "analytics",
-    "question": "Analytics Q7: How many docs have product_area = 'Compute' in metadata?",
-    "reference_answer": "Expect a SELECT COUNT with filter product_area = 'Compute' (case 7).",
+    "question": "Write a BigQuery SQL query to measure the cost savings from using Lightning Engine for Apache Spark versus standard Dataproc jobs on the same workloads.",
+    "reference_answer": "WITH job_costs AS (\n  SELECT\n    job_id,\n    engine_type,\n    duration_seconds,\n    dcu_consumed,\n    ROUND(dcu_consumed * 0.060, 4) AS estimated_cost_usd,\n    input_data_gb\n  FROM `your_project.dataproc.batch_job_metrics`\n  WHERE job_start >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 90 DAY)\n    AND engine_type IN ('lightning', 'standard')\n)\nSELECT\n  engine_type,\n  COUNT(*) AS job_count,\n  ROUND(AVG(duration_seconds / 60.0), 1) AS avg_duration_minutes,\n  ROUND(AVG(estimated_cost_usd), 4) AS avg_cost_usd,\n  ROUND(AVG(input_data_gb), 1) AS avg_input_gb,\n  ROUND(AVG(input_data_gb / NULLIF(duration_seconds, 0) * 1000), 2) AS throughput_mb_per_sec\nFROM job_costs\nGROUP BY engine_type\nORDER BY engine_type",
     "contexts": []
   },
   {
-    "id": "ana-08",
+    "id": "analytics-08",
     "category": "analytics",
-    "question": "Analytics Q8: How many docs have product_area = 'Compute' in metadata?",
-    "reference_answer": "Expect a SELECT COUNT with filter product_area = 'Compute' (case 8).",
+    "question": "Write a BigQuery SQL query to audit Agent Registry usage, showing which registered agents have been invoked, by whom, and how frequently in the past week.",
+    "reference_answer": "SELECT\n  r.agent_display_name,\n  r.agent_id,\n  r.team_label,\n  i.invoked_by_user,\n  COUNT(*) AS invocation_count,\n  COUNTIF(i.status = 'SUCCESS') AS success_count,\n  COUNTIF(i.status = 'FAILURE') AS failure_count,\n  ROUND(COUNTIF(i.status = 'SUCCESS') * 100.0 / COUNT(*), 1) AS success_rate_pct,\n  MAX(i.invocation_timestamp) AS last_invoked\nFROM `your_project.agent_registry.invocation_log` i\nJOIN `your_project.agent_registry.registered_agents` r\n  ON i.agent_id = r.agent_id\nWHERE i.invocation_timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY)\nGROUP BY r.agent_display_name, r.agent_id, r.team_label, i.invoked_by_user\nORDER BY invocation_count DESC",
     "contexts": []
   },
   {
-    "id": "ana-09",
+    "id": "analytics-09",
     "category": "analytics",
-    "question": "Analytics Q9: How many docs have product_area = 'Compute' in metadata?",
-    "reference_answer": "Expect a SELECT COUNT with filter product_area = 'Compute' (case 9).",
+    "question": "Write a BigQuery SQL query to analyze Knowledge Catalog context graph coverage: which business domains have the most tagged data assets and which have gaps.",
+    "reference_answer": "SELECT\n  domain,\n  COUNT(DISTINCT asset_id) AS asset_count,\n  COUNTIF(context_tags IS NOT NULL AND ARRAY_LENGTH(context_tags) > 0) AS tagged_asset_count,\n  COUNTIF(context_tags IS NULL OR ARRAY_LENGTH(context_tags) = 0) AS untagged_asset_count,\n  ROUND(\n    COUNTIF(context_tags IS NOT NULL AND ARRAY_LENGTH(context_tags) > 0)\n    * 100.0 / COUNT(DISTINCT asset_id),\n    1\n  ) AS coverage_pct,\n  MAX(last_indexed_at) AS last_indexed\nFROM `your_project.knowledge_catalog.data_assets`\nWHERE is_active = TRUE\nGROUP BY domain\nORDER BY coverage_pct ASC",
     "contexts": []
   },
   {
-    "id": "ana-10",
+    "id": "analytics-10",
     "category": "analytics",
-    "question": "Analytics Q10: How many docs have product_area = 'Compute' in metadata?",
-    "reference_answer": "Expect a SELECT COUNT with filter product_area = 'Compute' (case 10).",
+    "question": "Write a BigQuery SQL query to track Cross-Cloud Lakehouse query patterns: how many queries access AWS versus Azure data sources via Apache Iceberg, and what are the average data bytes scanned.",
+    "reference_answer": "SELECT\n  cloud_provider,\n  table_format,\n  COUNT(*) AS query_count,\n  ROUND(AVG(bytes_processed / POW(1024, 3)), 2) AS avg_gb_scanned,\n  ROUND(SUM(bytes_processed / POW(1024, 3)), 2) AS total_gb_scanned,\n  ROUND(AVG(duration_ms / 1000.0), 2) AS avg_duration_sec,\n  COUNTIF(cache_hit) AS cache_hits,\n  ROUND(COUNTIF(cache_hit) * 100.0 / COUNT(*), 1) AS cache_hit_rate_pct\nFROM `your_project.bigquery_omni.query_log`\nWHERE query_timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)\n  AND table_format = 'ICEBERG'\n  AND cloud_provider IN ('AWS', 'AZURE')\nGROUP BY cloud_provider, table_format\nORDER BY query_count DESC",
     "contexts": []
   }
 ]

@@ -47,12 +47,15 @@ def _response_text(resp: Any) -> str:
     return ""
 
 
+_CHUNK_CHAR_LIMIT = 1500  # per-chunk text limit; 5 chunks × 1500 = ~7.5 KB context
+
+
 def _hits_to_prompt(hits: list[dict[str, Any]]) -> str:
     blocks: list[str] = []
     for i, h in enumerate(hits):
         doc = h.get("source_doc") or "unknown"
         sec = h.get("section") or ""
-        text = (h.get("text") or "").strip()[:4000]
+        text = (h.get("text") or "").strip()[:_CHUNK_CHAR_LIMIT]
         blocks.append(f"--- Chunk {i} | {doc} | section: {sec} ---\n{text}")
     return "\n\n".join(blocks) if blocks else "(no chunks retrieved)"
 
@@ -99,6 +102,8 @@ def _generate_rag_sync(
         temperature=0,
         system_instruction=RAG_SYSTEM,
         response_mime_type="application/json",
+        response_schema=RAGStructuredOut,
+        max_output_tokens=2048,
     )
     resp = client.models.generate_content(model=model_id, contents=user, config=cfg)
     text = _response_text(resp)

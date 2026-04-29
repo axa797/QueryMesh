@@ -38,5 +38,5 @@ def test_code_generation_rows_imply_code_agent() -> None:
 def test_anchor_ids_exist_for_specialist_smoke() -> None:
     """Stable ids for manual traces: one analytics, one codegen."""
     ids = {r.id for r in load_golden()}
-    assert "ana-01" in ids
+    assert "analytics-01" in ids
     assert "code-01" in ids

@@ -64,6 +64,7 @@ Use GitHub task lists (`- [ ]` / `- [x]`) or turn each line into an issue. Recon
 
 - Local smoke: [docs/local_dev.md](docs/local_dev.md) — compose up, `uv run --env-file .env alembic upgrade head`, mint key, `uvicorn` with `--env-file .env`, `GET /health` all services `true`, demo HTML + `CORS_ALLOW_ORIGINS`.
 - Secrets: `API_KEY_PEPPER`, DB/Redis/Qdrant URLs, optional `E2B_`*, Langfuse keys per [infra/README.md](infra/README.md).
+- Provision prod Postgres (Cloud SQL), Redis (Memorystore), Qdrant (Cloud Run) — see [docs/production_infra.md](docs/production_infra.md).
 - Cloud Run (+ Qdrant if self-hosted): image from [infra/Dockerfile](infra/Dockerfile), `us-central1`, env aligned with `.env.example`.
 - Log-based metrics + alert policies: [docs/cloud_logging_metrics.md](docs/cloud_logging_metrics.md) using `ALERT_`* in [observability/gcp_monitoring.py](observability/gcp_monitoring.py).
 
@@ -72,6 +73,13 @@ Use GitHub task lists (`- [ ]` / `- [x]`) or turn each line into an issue. Recon
 - Enable `RAG_VERTEX_RERANK` only after Discovery Engine API + smoke; see [.env.example](.env.example).
 - Cost/latency pass: candidate limits, models, rate limits — driven by Langfuse + `querymesh_query` stdout logs.
 - **Phase 3 (optional scoping):** document goals (e.g. Cloud Run Job for ingest replacing `BackgroundTasks`, deeper dashboards). Prior backlog in Notes still lists historical phase bullets.
+
+### Corpus & evals (Next '26)
+
+- Fetch Google Cloud Next '26 corpus: `PYTHONPATH=. uv run python scripts/fetch_next26_corpus.py` → `corpus/gcp_docs/`
+- Drop old Qdrant collection (`INGESTION_RECREATE_COLLECTION=true`) and re-index: `POST /ingest {"source":"gcp_docs"}` — see [docs/corpus_runbook.md](docs/corpus_runbook.md).
+- Harvest live retrieval + model answers: `PYTHONPATH=. uv run python evals/harvest.py` → `evals/harvested_dataset.json`
+- Full RAGAS eval (LLM judge): `uv sync --group eval && RUN_EVAL=1 PYTHONPATH=. uv run --group eval python -m evals.ragas_eval --harvested --limit 10`
 
 ### Done recently (keep for audit trail)
 

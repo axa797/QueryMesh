@@ -2,10 +2,59 @@
 
 Public **GCP documentation** for RAG: primarily **PDFs**, plus optional **Markdown exports** of selected HTML docs (see below). The repo does not ship corpus files: use a local directory, default `./corpus/gcp_docs` ([`.env.example`](../.env.example) → `INGESTION_GCP_DOCS_DIR`). The directory is **gitignored** (`corpus/`).
 
-## Target size (spec)
+## Swap to Google Cloud Next '26 corpus
 
-- About **15–20 PDFs**, roughly **500–800 pages** total (Cloud Run, Vertex AI, BigQuery, GKE, Cloud Storage, …).
-- Quality over quantity: keep headings and export quality high so section-aware chunking works.
+Fetches all ~69 pages from the Next '26 260-announcement wrap-up (blog posts + doc pages).
+Use `--clean` to delete any existing corpus files first for a full replacement.
+
+```bash
+# 1. Delete old corpus files and fetch all 69 Next '26 pages
+PYTHONPATH=. uv run python scripts/fetch_next26_corpus.py --clean
+
+# 2. Start Docker services if not already running
+docker compose -f infra/docker-compose.yml up -d
+
+# 3. Drop the Qdrant collection (two options — pick one):
+
+#    Option A — direct Qdrant REST API (no API server needed; recommended):
+curl -sS -X DELETE "http://localhost:6333/collections/gcp_docs" | jq .
+
+#    Option B — let the ingest pipeline drop it (set once in .env; remove after first ingest):
+echo "INGESTION_RECREATE_COLLECTION=true" >> .env
+
+# 4. Start the API
+PYTHONPATH=. uv run --env-file .env uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
+
+# 5. Trigger ingest (BASE_URL and API_KEY from mint_api_key.py)
+BASE_URL=http://127.0.0.1:8000
+JOB=$(curl -sS -X POST "$BASE_URL/ingest" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"source":"gcp_docs"}' | jq -r .job_id)
+
+# 6. Poll until complete
+until curl -sS "$BASE_URL/ingest/$JOB" -H "Authorization: Bearer $API_KEY" | \
+      jq -e '.status == "complete"' > /dev/null 2>&1; do
+  echo "Waiting ..."; sleep 5
+done
+echo "Corpus indexed."
+
+# 7. Re-harvest eval data against the new corpus
+PYTHONPATH=. uv run python evals/harvest.py
+```
+
+After indexing, run evals — see [§Evals after refresh](#evals-after-refresh).
+
+## Target size (current corpus)
+
+**~69 HTML pages** fetched by [`scripts/fetch_next26_corpus.py`](../scripts/fetch_next26_corpus.py):
+blog posts and doc pages from the Google Cloud Next '26 260-announcement wrap-up.
+The corpus covers AI/agent platform, infrastructure (TPU 8th gen, Compute, GKE, Cloud Run),
+data/analytics (BigQuery, Spanner, Looker), security (Wiz, Fraud Defense, Model Armor),
+networking, storage, Firebase, and partner announcements.
+
+To add individual pages, drop any `.md` or `.pdf` file under `corpus/gcp_docs/` and
+re-run `POST /ingest` — the indexer upserts with deterministic point IDs so re-runs are safe.
 
 ## Where to get PDFs
 
@@ -70,13 +119,27 @@ Ingestion runs **in-process** (`BackgroundTasks`). Only one heavy job per API re
 
 ## Evals after refresh
 
-Golden rows are categorized in [evals/golden_dataset.json](../evals/golden_dataset.json). After changing the corpus, re-run fast validation:
+Golden rows are in [evals/golden_dataset.json](../evals/golden_dataset.json) (30 real Next '26
+questions). After changing the corpus, run:
 
 ```bash
-uv run pytest tests/test_golden_loader_unit.py tests/test_golden_specialist_profiles_unit.py -q
+# Fast structural validation (no LLM)
+uv run pytest tests/test_golden_loader_unit.py -q
+
+# Harvest live retrieval contexts + model answers from the indexed corpus
+PYTHONPATH=. uv run python evals/harvest.py
+# Writes evals/harvested_dataset.json
+
+# Full RAGAS (LLM judge via Vertex Gemini — has cost)
+uv sync --group eval
+RUN_EVAL=1 PYTHONPATH=. uv run --group eval python -m evals.ragas_eval --harvested --limit 10
+
+# DeepEval faithfulness (uses harvested data automatically when file exists)
+RUN_EVAL=1 PYTHONPATH=. uv run --group eval pytest evals/test_deepeval_suite.py -v
 ```
 
-Full RAGAS (LLM cost): `RUN_EVAL=1`, `uv sync --group eval`, then [evals/ragas_eval.py](../evals/ragas_eval.py) (see [AGENTS.md](../AGENTS.md)).
+See [AGENTS.md](../AGENTS.md) for prerequisites and [evals/harvest.py](../evals/harvest.py) for
+harvest script details.
 
 Optional CI: [.github/workflows/eval-manual.yml](../.github/workflows/eval-manual.yml) (`workflow_dispatch`) runs golden validation + RAGAS `--dry-run` without calling a judge model.
 
