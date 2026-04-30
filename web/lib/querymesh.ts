@@ -32,6 +32,16 @@ export type QueryMeshSuccess = {
   latency_ms: number;
 };
 
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 function errorDetail(body: unknown): string {
   if (body == null) return "Request failed";
   if (typeof body === "string") return body;
@@ -63,7 +73,7 @@ export async function readJsonResponse<T>(res: Response): Promise<T> {
     }
   }
   if (!res.ok) {
-    throw new Error(errorDetail(body));
+    throw new ApiError(errorDetail(body), res.status);
   }
   return body as T;
 }

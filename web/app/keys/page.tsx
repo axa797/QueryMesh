@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   API_KEY_STORAGE,
   getPortalJwt,
@@ -19,8 +20,13 @@ export default function KeysPage() {
   const [minted, setMinted] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const router = useRouter();
 
   const portal = typeof window !== "undefined" ? getPortalJwt() : null;
+
+  useEffect(() => {
+    if (!getPortalJwt()) router.replace("/login");
+  }, [router]);
 
   const load = useCallback(async () => {
     const t = getPortalJwt();

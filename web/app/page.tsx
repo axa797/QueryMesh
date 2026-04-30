@@ -1,40 +1,54 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { getPortalJwt } from "@/lib/auth-storage";
 
 export default function Home() {
+  const [signedIn, setSignedIn] = useState(false);
+  const router = useRouter();
+
+  useEffect(() => {
+    setSignedIn(!!getPortalJwt());
+  }, []);
+
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-semibold text-zinc-50">QueryMesh web UI</h1>
-      <p className="text-sm leading-relaxed text-zinc-400">
-        This Next.js app talks to your FastAPI backend. Set{" "}
-        <code className="rounded bg-zinc-900 px-1.5 py-0.5 font-mono text-xs">
-          NEXT_PUBLIC_QUERYMESH_URL
-        </code>{" "}
-        (defaults to <code className="font-mono text-xs">http://127.0.0.1:8000</code>). The API
-        must have{" "}
-        <code className="rounded bg-zinc-900 px-1.5 font-mono text-xs">PORTAL_JWT_SECRET</code> set
-        for registration and login.
-      </p>
-      <ul className="list-inside list-disc space-y-2 text-sm text-zinc-400">
-        <li>
-          <Link href="/register" className="text-sky-400 hover:underline">
-            Register
-          </Link>{" "}
-          — email + password → portal session (JWT in browser).
-        </li>
-        <li>
-          <Link href="/keys" className="text-sky-400 hover:underline">
-            API keys
-          </Link>{" "}
-          — mint / list / revoke keys for{" "}
-          <code className="font-mono text-xs">POST /query</code>.
-        </li>
-        <li>
-          <Link href="/chat" className="text-sky-400 hover:underline">
-            Chat
-          </Link>{" "}
-          — uses a raw API key (stored locally after mint).
-        </li>
-      </ul>
+    <div className="flex min-h-[70vh] flex-col items-center justify-center text-center">
+      <div className="space-y-4">
+        <h1 className="text-4xl font-bold tracking-tight text-zinc-50">
+          QueryMesh
+        </h1>
+        <p className="text-zinc-400 max-w-sm mx-auto">
+          GCP knowledge assistant — ask anything about Google Cloud.
+        </p>
+      </div>
+
+      <div className="mt-10 flex gap-3">
+        {signedIn ? (
+          <Link
+            href="/chat"
+            className="rounded-lg bg-sky-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-sky-500 transition-colors"
+          >
+            Open Chat
+          </Link>
+        ) : (
+          <>
+            <Link
+              href="/register"
+              className="rounded-lg bg-sky-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-sky-500 transition-colors"
+            >
+              Get started
+            </Link>
+            <Link
+              href="/login"
+              className="rounded-lg border border-zinc-700 px-6 py-2.5 text-sm font-medium text-zinc-300 hover:border-zinc-500 hover:text-zinc-100 transition-colors"
+            >
+              Sign in
+            </Link>
+          </>
+        )}
+      </div>
     </div>
   );
 }

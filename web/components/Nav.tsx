@@ -9,15 +9,6 @@ export function Nav() {
           QueryMesh
         </Link>
         <nav className="flex flex-wrap gap-4 text-sm text-zinc-400">
-          <Link href="/register" className="hover:text-zinc-200">
-            Register
-          </Link>
-          <Link href="/login" className="hover:text-zinc-200">
-            Login
-          </Link>
-          <Link href="/keys" className="hover:text-zinc-200">
-            API keys
-          </Link>
           <Link href="/chat" className="hover:text-zinc-200">
             Chat
           </Link>

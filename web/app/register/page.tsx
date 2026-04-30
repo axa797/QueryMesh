@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { setPortalJwt } from "@/lib/auth-storage";
-import { postJson, type PortalTokenResponse } from "@/lib/querymesh";
+import { setPortalJwt, setStoredApiKey } from "@/lib/auth-storage";
+import { postJson, type ApiKeyCreateResponse, type PortalTokenResponse } from "@/lib/querymesh";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -23,7 +23,11 @@ export default function RegisterPage() {
         password,
       });
       setPortalJwt(res.access_token);
-      router.push("/keys");
+      const minted = await postJson<ApiKeyCreateResponse>("/account/api-keys", {}, {
+        Authorization: `Bearer ${res.access_token}`,
+      });
+      setStoredApiKey(minted.api_key);
+      router.push("/chat");
       router.refresh();
     } catch (ex) {
       setErr(ex instanceof Error ? ex.message : "Register failed");

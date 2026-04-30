@@ -1,19 +1,26 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { clearAuth, getPortalJwt } from "@/lib/auth-storage";
 
 export function AuthControls() {
   const [signedIn, setSignedIn] = useState(false);
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     setSignedIn(!!getPortalJwt());
-  }, []);
+  }, [pathname]);
 
   if (!signedIn) {
-    return <span className="text-xs text-zinc-500">Portal: not signed in</span>;
+    return (
+      <nav className="flex flex-wrap gap-4 text-sm text-zinc-400">
+        <Link href="/register" className="hover:text-zinc-200">Register</Link>
+        <Link href="/login" className="hover:text-zinc-200">Login</Link>
+      </nav>
+    );
   }
 
   return (
