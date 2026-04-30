@@ -19,18 +19,26 @@ Without ``--harvested`` the runner uses the static ``contexts`` and ``reference_
 baked into golden_dataset.json — useful for CI smoke checks but not a real quality signal.
 
 Uses Vertex (Gemini) via LangChain for RAGAS judge LLM.
+
+Scores are automatically uploaded to Langfuse as a named trace when
+``LANGFUSE_PUBLIC_KEY`` and ``LANGFUSE_SECRET_KEY`` are set in the environment.
+View them at https://cloud.langfuse.com → Traces, filter by name "ragas-eval".
 """
 
 from __future__ import annotations
 
 import argparse
+import datetime
 import json
+import logging
 import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 
 from evals.golden_loader import GoldenRow, load_golden, validate_golden_counts
+
+log = logging.getLogger(__name__)
 
 _HARVESTED_PATH = Path(__file__).resolve().parent / "harvested_dataset.json"
 
@@ -104,6 +112,61 @@ def _rows_to_ragas_dataset_harvested(rows: list[HarvestedRow]):
             ),
         )
     return EvaluationDataset(samples=samples)
+
+
+def _upload_to_langfuse(result: object, *, n_samples: int, mode: str) -> None:
+    """Upload aggregate RAGAS scores to Langfuse as a named evaluator trace.
+
+    Requires LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY in the environment
+    (or set via LANGFUSE_HOST for self-hosted). Silently skips if not configured.
+
+    Scores appear in Langfuse → Traces, filterable by name "ragas-eval".
+    """
+    public_key = os.environ.get("LANGFUSE_PUBLIC_KEY", "")
+    secret_key = os.environ.get("LANGFUSE_SECRET_KEY", "")
+    if not public_key or not secret_key:
+        print("Langfuse upload skipped (LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY not set).")
+        return
+
+    try:
+        import pandas as pd  # bundled with ragas deps
+        from langfuse import Langfuse
+
+        df: pd.DataFrame = result.to_pandas()  # type: ignore[attr-defined]
+        agg: dict[str, float] = {
+            k: round(float(v), 4)
+            for k, v in df.mean(numeric_only=True).to_dict().items()
+            if isinstance(v, float)
+        }
+
+        lf = Langfuse(
+            public_key=public_key,
+            secret_key=secret_key,
+            host=os.environ.get("LANGFUSE_HOST") or None,
+        )
+
+        with lf.start_as_current_observation(
+            name="ragas-eval",
+            as_type="evaluator",
+            metadata={
+                "mode": mode,
+                "n_samples": n_samples,
+                "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
+                "google_cloud_project": os.environ.get("GOOGLE_CLOUD_PROJECT", ""),
+                "vertex_model": os.environ.get("VERTEX_LLM_MODEL", "gemini-2.5-flash"),
+            },
+            output=agg,
+        ):
+            trace_id = lf.get_current_trace_id()
+            for metric_name, value in agg.items():
+                lf.create_score(name=metric_name, value=value, trace_id=trace_id)
+
+        lf.flush()
+        lf_host = os.environ.get("LANGFUSE_HOST") or "https://cloud.langfuse.com"
+        print(f"Scores uploaded to Langfuse — trace: {trace_id}")
+        print(f"View at: {lf_host}/traces/{trace_id}")
+    except Exception:
+        log.exception("Langfuse upload failed (non-fatal)")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -229,6 +292,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Running RAGAS on {len(ds)} samples (LLM judge calls) ...")
     result = evaluate(dataset=ds, metrics=metrics, embeddings=ragas_emb, show_progress=True)
     print(result)
+    _upload_to_langfuse(result, n_samples=len(ds), mode=mode)
     return 0
 
 

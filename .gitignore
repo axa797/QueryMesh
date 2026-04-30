@@ -16,5 +16,8 @@ build/
 # Local GCP documentation PDFs (Phase 2 corpus; not committed)
 corpus/
 
+# Harvested eval data (runtime output; regenerate with evals/harvest.py)
+evals/harvested_dataset.json
+
 # Next.js generated types (regenerate via `next dev` / `next build` in web/)
 web/next-env.d.ts
