@@ -114,13 +114,27 @@ def _rows_to_ragas_dataset_harvested(rows: list[HarvestedRow]):
     return EvaluationDataset(samples=samples)
 
 
-def _upload_to_langfuse(result: object, *, n_samples: int, mode: str) -> None:
-    """Upload aggregate RAGAS scores to Langfuse as a named evaluator trace.
+def _upload_to_langfuse(
+    result: object,
+    *,
+    n_samples: int,
+    mode: str,
+    retrieval_rows: list,
+    judge_model: str,
+    output_model: str,
+    embedding_model: str,
+    rerank_enabled: bool,
+) -> None:
+    """Upload RAGAS scores to Langfuse: one parent evaluator trace with per-sample child spans.
 
-    Requires LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY in the environment
-    (or set via LANGFUSE_HOST for self-hosted). Silently skips if not configured.
+    Parent trace carries full pipeline config in metadata and aggregate scores as Langfuse
+    score objects. Each evaluated row becomes a child evaluator span with per-row metric
+    scores and the answer preview, so you can see exactly which questions regressed.
 
-    Scores appear in Langfuse → Traces, filterable by name "ragas-eval".
+    Requires LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY in the environment (or
+    LANGFUSE_HOST for self-hosted). Silently skips when not configured.
+
+    View at: Langfuse → Traces, filter name = "ragas-eval".
     """
     public_key = os.environ.get("LANGFUSE_PUBLIC_KEY", "")
     secret_key = os.environ.get("LANGFUSE_SECRET_KEY", "")
@@ -139,6 +153,9 @@ def _upload_to_langfuse(result: object, *, n_samples: int, mode: str) -> None:
             if isinstance(v, float)
         }
 
+        # Service name shows in resourceAttributes instead of "unknown_service".
+        os.environ.setdefault("OTEL_SERVICE_NAME", "querymesh-evals")
+
         lf = Langfuse(
             public_key=public_key,
             secret_key=secret_key,
@@ -149,17 +166,49 @@ def _upload_to_langfuse(result: object, *, n_samples: int, mode: str) -> None:
             name="ragas-eval",
             as_type="evaluator",
             metadata={
-                "mode": mode,
-                "n_samples": n_samples,
-                "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
+                "output_model": output_model,
+                "judge_model": judge_model,
+                "embedding_model": embedding_model,
+                "rerank_enabled": rerank_enabled,
+                "corpus_tag": "next26",
                 "google_cloud_project": os.environ.get("GOOGLE_CLOUD_PROJECT", ""),
-                "vertex_model": os.environ.get("VERTEX_LLM_MODEL", "gemini-2.5-flash"),
+                "n_questions_total": 30,
+                "n_questions_evaluated": n_samples,
+                "mode": mode,
+                "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
             },
             output=agg,
         ):
             trace_id = lf.get_current_trace_id()
+
+            # Aggregate scores visible as colored pills in the trace header.
             for metric_name, value in agg.items():
                 lf.create_score(name=metric_name, value=value, trace_id=trace_id)
+
+            # Per-sample child spans — one per evaluated row.
+            for row, (_, sample_scores) in zip(retrieval_rows, df.iterrows()):
+                per_row: dict[str, float] = {
+                    k: round(float(v), 4) for k, v in sample_scores.items() if isinstance(v, float)
+                }
+                answer_preview = getattr(row, "model_answer", getattr(row, "reference_answer", ""))
+                with lf.start_as_current_observation(
+                    name=row.id,
+                    as_type="evaluator",
+                    input=row.question,
+                    output=per_row,
+                    metadata={
+                        "category": row.category,
+                        "n_contexts": len(getattr(row, "contexts", [])),
+                        "answer_preview": str(answer_preview)[:300],
+                    },
+                ):
+                    row_trace_id = lf.get_current_trace_id()
+                    for metric_name, value in per_row.items():
+                        lf.create_score(
+                            name=metric_name,
+                            value=value,
+                            trace_id=row_trace_id,
+                        )
 
         lf.flush()
         lf_host = os.environ.get("LANGFUSE_HOST") or "https://cloud.langfuse.com"
@@ -292,7 +341,16 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Running RAGAS on {len(ds)} samples (LLM judge calls) ...")
     result = evaluate(dataset=ds, metrics=metrics, embeddings=ragas_emb, show_progress=True)
     print(result)
-    _upload_to_langfuse(result, n_samples=len(ds), mode=mode)
+    _upload_to_langfuse(
+        result,
+        n_samples=len(ds),
+        mode=mode,
+        retrieval_rows=retrieval,
+        judge_model=model_name,
+        output_model=model_name,
+        embedding_model="text-embedding-005",
+        rerank_enabled=os.environ.get("RAG_VERTEX_RERANK", "false").lower() == "true",
+    )
     return 0
 
 
