@@ -133,9 +133,6 @@ PYTHONPATH=. uv run python evals/harvest.py
 # Full RAGAS (LLM judge via Vertex Gemini — has cost)
 uv sync --group eval
 RUN_EVAL=1 PYTHONPATH=. uv run --group eval python -m evals.ragas_eval --harvested --limit 10
-
-# DeepEval faithfulness (uses harvested data automatically when file exists)
-RUN_EVAL=1 PYTHONPATH=. uv run --group eval pytest evals/test_deepeval_suite.py -v
 ```
 
 See [AGENTS.md](../AGENTS.md) for prerequisites and [evals/harvest.py](../evals/harvest.py) for

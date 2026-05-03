@@ -1,4 +1,4 @@
-"""Harvest real retrieval contexts and RAG model answers for RAGAS/DeepEval.
+"""Harvest real retrieval contexts and RAG model answers for RAGAS evaluation.
 
 Calls the retrieval tool and RAG agent directly — no API server needed. Writes
 ``evals/harvested_dataset.json`` with ``contexts`` populated from live Qdrant retrieval and

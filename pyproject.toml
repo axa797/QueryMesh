@@ -44,7 +44,6 @@ dev = [
 ]
 eval = [
     "datasets>=2.14",
-    "deepeval>=1.0",
     "langchain-google-vertexai>=2.0",
     "ragas>=0.1",
 ]
