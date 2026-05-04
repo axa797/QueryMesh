@@ -12,6 +12,7 @@ locals {
     "run.googleapis.com",
     "sqladmin.googleapis.com",
     "redis.googleapis.com",
+    "servicenetworking.googleapis.com",
     "secretmanager.googleapis.com",
     "artifactregistry.googleapis.com",
     "discoveryengine.googleapis.com",

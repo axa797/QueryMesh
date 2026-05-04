@@ -1,5 +1,10 @@
 # IAM bindings for Cloud Build SA and Cloud Run default SA.
 # Secret values are granted per-secret in bootstrap_gcp.sh; project-level roles here.
+#
+# Applying this requires permission to set project IAM. Cloud Build runs tf-apply as the
+# trigger service account (see bootstrap_gcp.sh: Compute default SA), not the legacy
+# *@cloudbuild.gserviceaccount.com address — grant that SA projectIamAdmin (bootstrap does).
+# If you see 403 "Policy update access denied", fix grants on the build SA, not cloudbuild@.
 
 data "google_project" "project" {
   project_id = var.project_id

@@ -13,11 +13,13 @@
 substitutions:
   _REGION: us-central1
   _DEPLOY_TRIGGER: deploy
+  _VPC_CONNECTOR_NAME: querymesh-connector
 
 options:
   logging: CLOUD_LOGGING_ONLY
 
-timeout: 1200s
+# Infra applies (SQL + Redis + connector churn) can exceed 20m; allow headroom.
+timeout: 2400s
 
 availableSecrets:
   secretManager:
@@ -43,7 +45,54 @@ steps:
           -reconfigure
 
   # ------------------------------------------------------------------
-  # 2. terraform validate
+  # 2. Adopt pre-existing GCP resources into state (idempotent).
+  #    Avoids 409 when a prior apply partially succeeded (secret / VPC connector).
+  # ------------------------------------------------------------------
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    id: tf-adopt
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        apt-get update -qq
+        apt-get install -y -qq wget unzip >/dev/null
+        TF_VER=1.10.0
+        wget -q "https://releases.hashicorp.com/terraform/$${TF_VER}/terraform_$${TF_VER}_linux_amd64.zip" -O /tmp/tf.zip
+        unzip -qo /tmp/tf.zip -d /usr/local/bin
+        chmod +x /usr/local/bin/terraform
+        cd infra/terraform
+
+        in_state() { terraform state list 2>/dev/null | grep -qxF "$$1"; }
+
+        for SECRET_ID in QDRANT_URL DATABASE_URL REDIS_URL; do
+          ADDR=$$(printf 'google_secret_manager_secret.derived["%s"]' "$$SECRET_ID")
+          if ! in_state "$$ADDR"; then
+            if gcloud secrets describe "$$SECRET_ID" --project="${PROJECT_ID}" >/dev/null 2>&1; then
+              echo "[+] importing secret $$SECRET_ID into terraform state"
+              terraform import -var="project_id=${PROJECT_ID}" -var="region=${_REGION}" \
+                "$$ADDR" "projects/${PROJECT_ID}/secrets/$${SECRET_ID}"
+            fi
+          else
+            echo "[=] secret $$SECRET_ID already in state"
+          fi
+        done
+
+        if ! in_state 'google_vpc_access_connector.connector'; then
+          if gcloud compute networks vpc-access connectors describe "${_VPC_CONNECTOR_NAME}" \
+              --region="${_REGION}" --project="${PROJECT_ID}" >/dev/null 2>&1; then
+            echo "[+] importing VPC access connector into terraform state"
+            terraform import -var="project_id=${PROJECT_ID}" -var="region=${_REGION}" \
+              google_vpc_access_connector.connector \
+              "projects/${PROJECT_ID}/locations/${_REGION}/connectors/${_VPC_CONNECTOR_NAME}"
+          fi
+        else
+          echo "[=] VPC access connector already in state"
+        fi
+    waitFor: [tf-init]
+
+  # ------------------------------------------------------------------
+  # 3. terraform validate
   # ------------------------------------------------------------------
   - name: hashicorp/terraform:1.10
     id: tf-validate
@@ -54,10 +103,10 @@ steps:
         set -eu
         cd infra/terraform
         terraform validate
-    waitFor: [tf-init]
+    waitFor: [tf-adopt]
 
   # ------------------------------------------------------------------
-  # 3. terraform plan — writes a plan file for apply
+  # 4. terraform plan — writes a plan file for apply
   # ------------------------------------------------------------------
   - name: hashicorp/terraform:1.10
     id: tf-plan
@@ -75,7 +124,7 @@ steps:
     waitFor: [tf-validate]
 
   # ------------------------------------------------------------------
-  # 4. terraform apply — executes the saved plan
+  # 5. terraform apply — executes the saved plan
   # ------------------------------------------------------------------
   - name: hashicorp/terraform:1.10
     id: tf-apply
@@ -89,8 +138,8 @@ steps:
     waitFor: [tf-plan]
 
   # ------------------------------------------------------------------
-  # 5. Emit terraform outputs as JSON for the reconcile step.
-  #    Writes /workspace/tf_outputs.json — consumed by step 6.
+  # 6. Emit terraform outputs as JSON for the reconcile step.
+  #    Writes /workspace/tf_outputs.json — consumed by reconcile-deploy.
   # ------------------------------------------------------------------
   - name: hashicorp/terraform:1.10
     id: tf-output
@@ -106,7 +155,7 @@ steps:
     waitFor: [tf-apply]
 
   # ------------------------------------------------------------------
-  # 6. Reconcile deploy trigger + derived secrets.
+  # 7. Reconcile deploy trigger + derived secrets.
   #
   # This step is the whole reason this file is more than "terraform apply" —
   # it makes the bootstrap → apply → deploy flow truly zero-manual-steps.

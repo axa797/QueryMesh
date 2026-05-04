@@ -13,6 +13,8 @@ resource "google_sql_database_instance" "postgres" {
   database_version = "POSTGRES_16"
 
   settings {
+    # db-g1-small is not valid on ENTERPRISE_PLUS; default API may choose PLUS without this.
+    edition           = "ENTERPRISE"
     tier              = "db-g1-small"
     availability_type = "ZONAL"
     disk_type         = "PD_SSD"
@@ -26,8 +28,9 @@ resource "google_sql_database_instance" "postgres" {
     }
 
     ip_configuration {
-      ipv4_enabled = false
-      # Cloud Run connects via Unix socket (Cloud SQL Auth Proxy) — no public IP needed.
+      ipv4_enabled    = false
+      private_network = data.google_compute_network.default.id
+      # Cloud Run connects via the SQL Auth Proxy path; traffic stays on Google backbone.
     }
 
     database_flags {
@@ -38,7 +41,10 @@ resource "google_sql_database_instance" "postgres" {
 
   deletion_protection = true
 
-  depends_on = [google_project_service.apis]
+  depends_on = [
+    google_project_service.apis,
+    google_service_networking_connection.private_vpc_connection,
+  ]
 }
 
 resource "google_sql_database" "db" {

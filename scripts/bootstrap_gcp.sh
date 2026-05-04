@@ -253,6 +253,14 @@ grant_role "serviceAccount:${BUILD_SA}" "roles/cloudbuild.builds.editor"
 # secretVersionAdder so the very first run — before terraform has created the
 # secrets or the per-secret bindings — can create versions if needed.
 grant_role "serviceAccount:${BUILD_SA}" "roles/secretmanager.secretVersionAdder"
+# tf-apply runs Terraform as this same SA (regional triggers require a user-managed
+# service account; we use the Compute default SA). Terraform needs:
+#   - project IAM updates (iam.tf google_project_iam_member)
+#   - VPC peering for Cloud SQL private IP (private_services.tf)
+#   - per-secret IAM on derived secrets (secrets.tf)
+grant_role "serviceAccount:${BUILD_SA}" "roles/resourcemanager.projectIamAdmin"
+grant_role "serviceAccount:${BUILD_SA}" "roles/compute.networkAdmin"
+grant_role "serviceAccount:${BUILD_SA}" "roles/secretmanager.admin"
 
 # Per-secret accessor bindings for the static, user-supplied secrets
 # (DATABASE_URL / REDIS_URL / QDRANT_URL are managed by terraform).

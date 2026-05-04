@@ -51,6 +51,12 @@ variable "vpc_connector_name" {
   default     = "querymesh-connector"
 }
 
+variable "vpc_connector_cidr" {
+  description = "Unused /28 in the default VPC for the serverless connector (must not overlap region subnets)"
+  type        = string
+  default     = "10.8.0.0/28"
+}
+
 variable "qdrant_image" {
   description = "Qdrant Docker image"
   type        = string

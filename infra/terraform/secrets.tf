@@ -2,6 +2,9 @@
 # cloudbuild.tf.yaml on every tf-apply so they stay in lockstep with the
 # resource identifiers below.
 #
+# If apply returns 409 because a secret already exists (e.g. partial apply), import:
+#   terraform import 'google_secret_manager_secret.derived["QDRANT_URL"]' projects/PROJECT_ID/secrets/QDRANT_URL
+#
 # - DATABASE_URL = postgresql+asyncpg://{user}:{DB_PASSWORD}@/{db}?host=/cloudsql/{connection_name}
 # - REDIS_URL    = redis://{redis_host}:{redis_port}/0
 # - QDRANT_URL   = {google_cloud_run_v2_service.qdrant.uri}
