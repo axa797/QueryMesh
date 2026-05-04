@@ -28,11 +28,16 @@ export default function ChatPage() {
   const router = useRouter();
 
   useEffect(() => {
+    const jwt = getPortalJwt();
+    if (!jwt) {
+      router.replace("/register");
+      return;
+    }
     const k = getStoredApiKey();
     if (k) setApiKey(k);
     if (typeof window !== "undefined")
       setSessionId(sessionStorage.getItem(SESSION_STORAGE_KEY));
-  }, []);
+  }, [router]);
 
   async function remintKey(): Promise<string | null> {
     const jwt = getPortalJwt();
