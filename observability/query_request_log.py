@@ -1,4 +1,4 @@
-"""Single-line JSON logs for ``/query`` (Phase 2 log-based Cloud Monitoring metrics)."""
+"""Single-line JSON logs for ``/query`` (Cloud Monitoring log-based metrics)."""
 
 from __future__ import annotations
 

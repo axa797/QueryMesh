@@ -1,9 +1,8 @@
 """Where ingestion work is scheduled (BackgroundTasks today; Cloud Run Job later).
 
-Phase 2: ``FastAPI.BackgroundTasks`` runs ``run_ingestion_job`` in-process.
-
-Future: replace ``schedule_ingestion_job`` to enqueue ``(job_id, source)`` for a Cloud Run Job
-or external worker; keep ``run_ingestion_job`` as the worker entrypoint.
+``FastAPI.BackgroundTasks`` runs ``run_ingestion_job`` in-process. To move to an external
+worker, replace ``schedule_ingestion_job`` to enqueue ``(job_id, source)`` for a Cloud Run Job
+and keep ``run_ingestion_job`` as the worker entrypoint.
 """
 
 from __future__ import annotations

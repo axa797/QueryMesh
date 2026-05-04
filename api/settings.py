@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     qdrant_api_key: str | None = None
     qdrant_collection: str = "gcp_docs"
 
-    # Ingestion API (Phase 15): document directory for `source=gcp_docs`
+    # Ingestion API: document directory for `source=gcp_docs`
     ingestion_gcp_docs_dir: str = ""
     ingestion_recreate_collection: bool = False
 
@@ -59,12 +59,12 @@ class Settings(BaseSettings):
     # Discovery Engine Rank API model (spec §6.2; requires Discovery Engine API enabled)
     vertex_ranking_model: str = "semantic-ranker-fast-004"
 
-    # BigQuery (§6.4; seed with scripts/bootstrap_bq.py)
+    # BigQuery analytics agent
     bigquery_project_id: str | None = None
     bigquery_dataset: str = "querymesh"
     bigquery_location: str = "US"
 
-    # Rate limiting (Phase 14 — slowapi; default same Redis as sessions)
+    # Rate limiting (slowapi; default same Redis as sessions)
     query_rate_limit: str = "60/minute"
     rate_limit_storage_uri: str | None = None
 

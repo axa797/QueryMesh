@@ -1,4 +1,4 @@
-"""slowapi limiter: per API key, Redis-backed storage (spec §8, Phase 14)."""
+"""slowapi limiter: per API key, Redis-backed storage."""
 
 from __future__ import annotations
 

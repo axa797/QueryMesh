@@ -1,4 +1,4 @@
-"""Golden dataset rows stay semantically tied to analytics vs code agents (spec_phase2)."""
+"""Golden dataset rows stay semantically tied to analytics vs code agents."""
 
 from __future__ import annotations
 

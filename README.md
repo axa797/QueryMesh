@@ -269,10 +269,8 @@ Full reference: `.env.example`.
 
 ## Further reading
 
-- `spec.md` — full technical specification and design decisions
 - `PROGRESS.md` — phase checklist and implementation notes
 - `docs/local_dev.md` — detailed local development walkthrough
 - `docs/corpus_runbook.md` — corpus swap, Qdrant management, eval workflow
 - `docs/production_infra.md` — Cloud SQL / Memorystore / Qdrant provisioning
 - `docs/cloud_logging_metrics.md` — log-based metrics and alert policies
-- `AGENTS.md` — agent context for AI coding assistants

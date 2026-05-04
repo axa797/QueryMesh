@@ -1,4 +1,4 @@
-# Cloud Logging: `/query` log-based metrics (Phase 2)
+# Cloud Logging: `/query` log-based metrics
 
 The API emits **one JSON object per line** on **stdout** after each `POST /query` (see [observability/query_request_log.py](../observability/query_request_log.py)). On **Cloud Run**, these lines usually appear as **`textPayload`** (raw line) unless your logging agent maps them into `jsonPayload` fields. Use the filters below that match **either** shape.
 
@@ -84,7 +84,7 @@ resource.type="cloud_run_revision"
 
 2. In **Metrics explorer** or **Alerting**, use **MQL** or a **ratio-based** condition: rolling counts of `querymesh_query_errors` / `querymesh_query_requests` **> 0.05** over **5m**. (Exact UI path varies; you can also alert when **error count** exceeds a fixed threshold if traffic is steady.)
 
-3. Tune notifications and runbooks to match your SLOs; **E2B / code paths** may legitimately exceed global latency SLO (see [spec.md](../spec.md) §14).
+3. Tune notifications and runbooks to match your SLOs; E2B / code execution paths may legitimately exceed global latency SLO.
 
 **Instance / cost guardrail:** use Cloud Run metrics (`instance_count`) with threshold tied to `ALERT_CLOUD_RUN_MAX_INSTANCES`.
 

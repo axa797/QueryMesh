@@ -1,4 +1,4 @@
-"""POST /ingest + GET /ingest/{job_id} (spec §8, Phase 15)."""
+"""POST /ingest + GET /ingest/{job_id}."""
 
 from __future__ import annotations
 

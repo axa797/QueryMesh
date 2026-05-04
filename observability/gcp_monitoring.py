@@ -1,15 +1,10 @@
-"""GCP Cloud Monitoring hooks and naming (spec §11–§12, Phase 16).
+"""GCP Cloud Monitoring metric naming and alert threshold constants.
 
-v1 does not export custom metrics to Cloud Monitoring from this process. Cloud Run already
-emits request logs; use **log-based metrics** and **Alerting policies** in the Google Cloud
-console from those logs, or add an OpenTelemetry exporter in a later iteration.
+Does not export custom metrics directly — Cloud Run already emits request logs.
+Use log-based metrics and alerting policies in the Cloud Console from those logs,
+or add an OpenTelemetry exporter later.
 
-**Operational playbook (Phase 2):**
-[docs/cloud_logging_metrics.md](../docs/cloud_logging_metrics.md) — log filters,
-counters/distributions, charts, and how to use the ``ALERT_*`` constants below.
-
-This module documents intended custom metric types and emits **debug** lines for local
-verification when ``logging`` level is DEBUG.
+Operational playbook: [docs/cloud_logging_metrics.md](../docs/cloud_logging_metrics.md).
 """
 
 from __future__ import annotations

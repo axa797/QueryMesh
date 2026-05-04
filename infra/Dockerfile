@@ -1,4 +1,4 @@
-# querymesh API — Cloud Run (Phase 18). Build from repo root:
+# querymesh API — Cloud Run. Build from repo root:
 #   docker build -f infra/Dockerfile .
 #
 # Requires runtime env: DATABASE_URL, API_KEY_PEPPER, REDIS_URL, QDRANT_URL,

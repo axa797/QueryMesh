@@ -1,4 +1,4 @@
-"""Langfuse tracing setup for LangGraph (spec §5 instrumentation, §11 Phase 13+)."""
+"""Langfuse tracing setup for LangGraph."""
 
 from __future__ import annotations
 

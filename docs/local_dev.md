@@ -55,7 +55,7 @@ Without indexed PDFs, retrieval is empty; orchestrator/synthesizer may still run
 
 - Put public GCP-doc PDFs under `./corpus/gcp_docs/` (see [corpus_runbook.md](corpus_runbook.md)).
 - Set `INGESTION_GCP_DOCS_DIR=./corpus/gcp_docs` and `GOOGLE_CLOUD_PROJECT` in `.env`.
-- Run `POST /ingest` with `{"source":"gcp_docs"}` or use the CLI in [spec.md](../spec.md) local section.
+- Run `POST /ingest` with `{"source":"gcp_docs"}` — see [docs/corpus_runbook.md](corpus_runbook.md) for the full workflow.
 
 ## 6. Tests (same as CI)
 

@@ -1,4 +1,4 @@
-"""POST /query rate limit (Phase 14)."""
+"""POST /query rate limit tests."""
 
 from __future__ import annotations
 

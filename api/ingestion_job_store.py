@@ -11,7 +11,7 @@ from sqlalchemy import text
 
 
 class PostgresIngestionJobRepository:
-    """Job state in ``ingestion_jobs`` (Phase 2)."""
+    """Job state in the ``ingestion_jobs`` Postgres table."""
 
     async def create_job(self, *, user_id: UUID, source: str) -> str:
         jid = uuid.uuid4()

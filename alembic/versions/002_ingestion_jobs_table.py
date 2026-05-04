@@ -1,4 +1,4 @@
-"""Ingestion job persistence (Phase 2 spec_phase2).
+"""Ingestion job persistence.
 
 Revision ID: 002_ingestion_jobs
 Revises: 001_initial_schema
