@@ -164,6 +164,12 @@ create_secret "E2B_API_KEY"       "E2B_API_KEY (from e2b.dev dashboard)"
 create_secret "LANGFUSE_PUBLIC_KEY" "LANGFUSE_PUBLIC_KEY" "true"
 create_secret "LANGFUSE_SECRET_KEY" "LANGFUSE_SECRET_KEY" "true"
 create_secret "PORTAL_JWT_SECRET"   "PORTAL_JWT_SECRET (random string for account portal JWTs)" "true"
+# INGEST_SERVICE_KEY: a pre-minted querymesh API key used by Cloud Build to call POST /ingest.
+# After first deploy, run: PYTHONPATH=. uv run python scripts/mint_api_key.py
+# then store the raw key: echo -n "RAW_KEY" | gcloud secrets create INGEST_SERVICE_KEY --data-file=- --project=$PROJECT_ID
+# For now, create a placeholder — update it after first deploy.
+create_secret "INGEST_SERVICE_KEY" "INGEST_SERVICE_KEY (querymesh API key for ingest — mint after first deploy, enter placeholder now)" "true"
+create_secret "QDRANT_URL"         "QDRANT_URL (Cloud Run Qdrant internal URL — copy from: terraform output qdrant_url)"
 
 # ---------------------------------------------------------------------------
 # 5. IAM roles
@@ -197,8 +203,8 @@ grant_role "serviceAccount:${CR_SA}" "roles/cloudsql.client"
 grant_role "serviceAccount:${CR_SA}" "roles/discoveryengine.viewer"
 
 # Grant Cloud Build SA access to each secret explicitly
-for secret in API_KEY_PEPPER DB_PASSWORD QDRANT_API_KEY E2B_API_KEY \
-              LANGFUSE_PUBLIC_KEY LANGFUSE_SECRET_KEY PORTAL_JWT_SECRET; do
+for secret in API_KEY_PEPPER DB_PASSWORD QDRANT_API_KEY QDRANT_URL E2B_API_KEY \
+              LANGFUSE_PUBLIC_KEY LANGFUSE_SECRET_KEY PORTAL_JWT_SECRET INGEST_SERVICE_KEY; do
   if gcloud secrets describe "$secret" --project="$PROJECT_ID" &>/dev/null; then
     gcloud secrets add-iam-policy-binding "$secret" \
       --project="$PROJECT_ID" \
