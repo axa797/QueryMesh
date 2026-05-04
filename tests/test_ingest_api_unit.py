@@ -5,7 +5,11 @@ from __future__ import annotations
 import uuid
 
 import pytest
-from api.deps import get_current_user_internal_id, set_ingestion_job_repository_for_tests
+from api.deps import (
+    get_current_user_internal_id,
+    get_ingest_actor,
+    set_ingestion_job_repository_for_tests,
+)
 from api.main import app
 from fastapi.testclient import TestClient
 
@@ -25,6 +29,8 @@ def auth_client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
         await repo.mark_running(job_id=job_id)
         await repo.mark_succeeded(job_id=job_id, docs_indexed=9)
 
+    # POST /ingest uses get_ingest_actor; GET /ingest/{id} uses get_current_user_internal_id.
+    app.dependency_overrides[get_ingest_actor] = user_override
     app.dependency_overrides[get_current_user_internal_id] = user_override
     monkeypatch.setattr("api.ingestion_runner.run_ingestion_job", fake_run)
     with TestClient(app) as client:
@@ -70,6 +76,7 @@ def test_other_users_job_returns_404(
     async def fake_run(job_id: str, source: str) -> None:
         await repo.mark_succeeded(job_id=job_id, docs_indexed=1)
 
+    app.dependency_overrides[get_ingest_actor] = owner_user
     app.dependency_overrides[get_current_user_internal_id] = owner_user
     monkeypatch.setattr("api.ingestion_runner.run_ingestion_job", fake_run)
     try:

@@ -16,6 +16,7 @@ substitutions:
   _AR_REPO: querymesh
   _SERVICE: api
   _SQL_INSTANCE: querymesh-pg  # Cloud SQL instance name (matches terraform/sql.tf)
+  _QDRANT_COLLECTION: gcp_docs
   _EXTRA_DEPLOY_ARGS: ""
 
 options:
@@ -27,8 +28,8 @@ availableSecrets:
       env: DB_PASSWORD
     - versionName: projects/$PROJECT_ID/secrets/API_KEY_PEPPER/versions/latest
       env: API_KEY_PEPPER
-    - versionName: projects/$PROJECT_ID/secrets/INGEST_SERVICE_KEY/versions/latest
-      env: INGEST_SERVICE_KEY
+    - versionName: projects/$PROJECT_ID/secrets/INGEST_TOKEN/versions/latest
+      env: INGEST_TOKEN
     - versionName: projects/$PROJECT_ID/secrets/QDRANT_URL/versions/latest
       env: QDRANT_URL
     - versionName: projects/$PROJECT_ID/secrets/QDRANT_API_KEY/versions/latest
@@ -140,42 +141,59 @@ steps:
     waitFor: [migrate]
 
   # ------------------------------------------------------------------
-  # 7. Trigger corpus ingest — skipped if Qdrant already populated
+  # 7. Trigger corpus ingest when needed:
+  #    - Qdrant collection is empty (fresh env / wiped volume), OR
+  #    - ingestion code, embeddings, or corpus scripts changed in this push
   # ------------------------------------------------------------------
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
     id: ingest
     entrypoint: bash
-    secretEnv: [INGEST_SERVICE_KEY, QDRANT_URL, QDRANT_API_KEY]
+    secretEnv: [INGEST_TOKEN, QDRANT_URL, QDRANT_API_KEY]
     args:
       - -c
       - |
         set -euo pipefail
+        SHOULD_INGEST=false
 
-        # Check Qdrant: how many vectors are already in the collection?
+        # 1. Check Qdrant collection vector count.
         QDRANT_COUNT=$(curl -sf \
           -H "api-key: $$QDRANT_API_KEY" \
-          "$$QDRANT_URL/collections/gcp_docs" 2>/dev/null \
+          "$$QDRANT_URL/collections/${_QDRANT_COLLECTION}" 2>/dev/null \
           | python3 -c "
 import sys, json
 d = json.load(sys.stdin)
 print(d.get('result', {}).get('vectors_count') or 0)
 " 2>/dev/null || echo "0")
+        echo "Qdrant '${_QDRANT_COLLECTION}' vector count: $$QDRANT_COUNT"
+        if [[ "$$QDRANT_COUNT" -eq "0" ]]; then
+          echo "  → collection empty, ingest required"
+          SHOULD_INGEST=true
+        fi
 
-        echo "Qdrant gcp_docs collection vector count: $$QDRANT_COUNT"
+        # 2. Check whether corpus-related files changed in this push.
+        #    Triggers re-index when: ingestion logic, embedding model config, or corpus scripts change.
+        CORPUS_FILES_CHANGED=$(git diff HEAD~1 HEAD --name-only -- \
+          ingestion/ \
+          scripts/fetch_next26_corpus.py \
+          2>/dev/null | grep -c . || echo "0")
+        if [[ "$$CORPUS_FILES_CHANGED" -gt "0" ]]; then
+          echo "  → $$CORPUS_FILES_CHANGED corpus-related file(s) changed, ingest required"
+          SHOULD_INGEST=true
+        fi
 
-        if [[ "$$QDRANT_COUNT" -gt "0" ]]; then
-          echo "Collection already populated — skipping ingest."
+        if [[ "$$SHOULD_INGEST" == "false" ]]; then
+          echo "No ingest needed — collection populated and no corpus files changed."
           exit 0
         fi
 
         API_URL=$(gcloud run services describe ${_SERVICE} \
           --region ${_REGION} \
           --format='value(status.url)')
-        echo "Collection empty — triggering corpus ingest at $$API_URL/ingest ..."
+        echo "Triggering corpus ingest at $$API_URL/ingest ..."
 
         STATUS=$(curl -sf -o /dev/null -w "%{http_code}" \
           -X POST "$$API_URL/ingest" \
-          -H "Authorization: Bearer $$INGEST_SERVICE_KEY" \
+          -H "Authorization: Bearer $$INGEST_TOKEN" \
           -H "Content-Type: application/json" \
           -d '{"source":"gcp_docs"}' || echo "000")
 

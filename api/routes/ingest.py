@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 
-from api.deps import CurrentUserId, IngestionJobRepo
+from api.deps import CurrentUserId, IngestActorId, IngestionJobRepo
 from api.ingestion_schedule import schedule_ingestion_job
 from api.schemas.ingest import IngestRequest, IngestStartResponse, IngestStatusResponse
 
@@ -13,7 +13,7 @@ router = APIRouter(tags=["ingest"])
 
 @router.post("/ingest", response_model=IngestStartResponse)
 async def post_ingest(
-    user_id: CurrentUserId,
+    user_id: IngestActorId,
     body: IngestRequest,
     background_tasks: BackgroundTasks,
     repo: IngestionJobRepo,

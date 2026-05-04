@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     # Ingestion API: document directory for `source=gcp_docs`
     ingestion_gcp_docs_dir: str = ""
     ingestion_recreate_collection: bool = False
+    # Service-to-service token accepted by POST /ingest in addition to user API keys.
+    # Set to a long random string in Secret Manager; Cloud Build uses it so no user key is needed.
+    ingest_token: str | None = None
 
     # §4 feature flag — Discovery Engine ranker after dense retrieval (enable API on project).
     rag_vertex_rerank: bool = True
@@ -103,6 +106,7 @@ class Settings(BaseSettings):
         "e2b_api_key",
         "e2b_template_id",
         "portal_jwt_secret",
+        "ingest_token",
         mode="before",
     )
     @classmethod

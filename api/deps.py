@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import secrets
 from typing import Annotated
 from uuid import UUID
 
@@ -15,6 +16,10 @@ from api.ingestion_job_protocol import IngestionJobRepository
 from api.ingestion_job_store import PostgresIngestionJobRepository
 from api.portal_jwt import decode_portal_sub
 from api.settings import get_settings
+
+# Sentinel UUID used when POST /ingest is called via the service INGEST_TOKEN
+# (not a real user — jobs created this way are owned by this fixed id).
+_INGEST_SERVICE_UUID = UUID("00000000-0000-0000-0000-000000000001")
 
 http_bearer = HTTPBearer(auto_error=False)
 
@@ -90,8 +95,48 @@ async def get_portal_user_id(
         ) from None
 
 
+async def get_ingest_actor(
+    creds: Annotated[HTTPAuthorizationCredentials | None, Depends(http_bearer)],
+) -> UUID:
+    """Resolve the caller of POST /ingest.
+
+    Accepts either a regular user API key or the INGEST_TOKEN service secret.
+    The service token enables Cloud Build to trigger ingest without a user account.
+    """
+    if creds is None or creds.scheme.lower() != "bearer" or not creds.credentials.strip():
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "error": "invalid_api_key",
+                "message": "Missing or invalid Authorization header (expected Bearer token).",
+            },
+        )
+    token = creds.credentials.strip()
+    settings = get_settings()
+
+    # Check service ingest token first (constant-time compare to prevent timing attacks).
+    svc_token = (settings.ingest_token or "").strip()
+    if svc_token and secrets.compare_digest(token, svc_token):
+        return _INGEST_SERVICE_UUID
+
+    # Fall back to regular user API key lookup.
+    factory = get_session_factory()
+    async with factory() as session:
+        user_id = await lookup_user_for_api_key(session, token, settings.api_key_pepper)
+    if user_id is None:
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "error": "invalid_api_key",
+                "message": "Unknown or revoked API key.",
+            },
+        )
+    return user_id
+
+
 CurrentUserId = Annotated[UUID, Depends(get_current_user_internal_id)]
 PortalUserId = Annotated[UUID, Depends(get_portal_user_id)]
+IngestActorId = Annotated[UUID, Depends(get_ingest_actor)]
 
 _postgres_ingestion_repo = PostgresIngestionJobRepository()
 _ingestion_repo_override: IngestionJobRepository | None = None
