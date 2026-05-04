@@ -34,18 +34,31 @@ the script prints the URL.
 ### Step 2 — Provision backing services (automatic on push)
 
 Push any change under `infra/terraform/` to `main`. The `tf-apply` Cloud Build trigger
-fires automatically and runs:
+fires automatically and runs [infra/cloudbuild.tf.yaml](cloudbuild.tf.yaml):
 
 ```
-terraform init → validate → plan → apply
+terraform init → validate → plan → apply → reconcile-deploy
 ```
 
 This provisions: Cloud SQL (Postgres 16), Memorystore (Redis 7), Qdrant on Cloud Run
 (`min-instances=1`), and the VPC connector. State lives in
 `gs://${PROJECT_ID}-tf-state/terraform/state`.
 
-See [infra/terraform/terraform.tfvars.example](terraform/terraform.tfvars.example) for
-the two required variables (`project_id`, `region`).
+The final `reconcile-deploy` step is what makes the setup truly zero-manual-step:
+
+1. Reads terraform outputs (Cloud SQL connection name, Redis host/port, Qdrant URL,
+   VPC connector).
+2. Writes fresh versions of three derived secrets — `DATABASE_URL`, `REDIS_URL`,
+   `QDRANT_URL` — so they always reflect the current infrastructure. The secret
+   *schemas* are managed in [terraform/secrets.tf](terraform/secrets.tf); their
+   *values* are composed from other secrets + outputs inside the build.
+3. Updates the `deploy` trigger's `_EXTRA_DEPLOY_ARGS` substitution so every future
+   push to `main` deploys with the correct Cloud SQL attachment, VPC connector, and
+   secret bindings — no `gcloud ... --update-substitutions` command to remember.
+
+The step is idempotent: if values are unchanged, it's a no-op. If SQL or Redis are
+ever recreated (restore from backup, region move, etc.), the next `tf-apply`
+automatically re-points everything.
 
 ### Step 3 — Deploy API (automatic on push)
 
@@ -56,7 +69,7 @@ Push any app code change to `main`. The `deploy` Cloud Build trigger fires and r
 2. Scan image layers for accidentally baked-in secrets
 3. Push to Artifact Registry
 4. Run `alembic upgrade head` via Cloud SQL Auth Proxy sidecar
-5. `gcloud run deploy api`
+5. `gcloud run deploy api` (with the flag blob reconciled by `tf-apply`)
 6. `POST /ingest` to reload the corpus into Qdrant
 
 ### Ongoing

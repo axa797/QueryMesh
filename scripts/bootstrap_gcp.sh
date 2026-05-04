@@ -189,18 +189,22 @@ create_secret() {
 
 require "You will be prompted for each secret value. Values are sent directly to Secret Manager."
 echo ""
-create_secret "API_KEY_PEPPER"    "API_KEY_PEPPER (long random string used to HMAC API keys)"
-create_secret "DB_PASSWORD"       "DB_PASSWORD (Postgres password for querymesh user)"
-create_secret "QDRANT_API_KEY"    "QDRANT_API_KEY (random string; set the same on the Qdrant Cloud Run service)"
-create_secret "E2B_API_KEY"       "E2B_API_KEY (from e2b.dev dashboard)"
+# User-supplied secrets (values you know at bootstrap time).
+create_secret "API_KEY_PEPPER"      "API_KEY_PEPPER (long random string used to HMAC API keys)"
+create_secret "DB_PASSWORD"         "DB_PASSWORD (Postgres password for querymesh user)"
+create_secret "QDRANT_API_KEY"      "QDRANT_API_KEY (random string; set the same on the Qdrant Cloud Run service)"
+create_secret "E2B_API_KEY"         "E2B_API_KEY (from e2b.dev dashboard)"
 create_secret "LANGFUSE_PUBLIC_KEY" "LANGFUSE_PUBLIC_KEY" "true"
 create_secret "LANGFUSE_SECRET_KEY" "LANGFUSE_SECRET_KEY" "true"
 create_secret "PORTAL_JWT_SECRET"   "PORTAL_JWT_SECRET (random string for account portal JWTs)" "true"
 # INGEST_TOKEN: a random shared secret used by Cloud Build to call POST /ingest.
 # Generate with: openssl rand -hex 32
 # No user account needed — this bypasses normal API key auth for service-to-service calls only.
-create_secret "INGEST_TOKEN"       "INGEST_TOKEN (random string — generate: openssl rand -hex 32)"
-create_secret "QDRANT_URL"         "QDRANT_URL (Cloud Run Qdrant internal URL — copy from: terraform output qdrant_url)"
+create_secret "INGEST_TOKEN"        "INGEST_TOKEN (random string — generate: openssl rand -hex 32)"
+
+# Derived secrets (DATABASE_URL, REDIS_URL, QDRANT_URL) are NOT created here.
+# They are created by terraform (infra/terraform/secrets.tf) with values written
+# by the `reconcile-deploy` step in infra/cloudbuild.tf.yaml on every tf-apply.
 
 # ---------------------------------------------------------------------------
 # 5. IAM roles
@@ -238,10 +242,21 @@ grant_role "serviceAccount:${BUILD_SA}" "roles/secretmanager.secretAccessor"
 grant_role "serviceAccount:${BUILD_SA}" "roles/discoveryengine.viewer"
 # Required when build YAML sets options.logging=CLOUD_LOGGING_ONLY.
 grant_role "serviceAccount:${BUILD_SA}" "roles/logging.logWriter"
+# tf-apply's reconcile step calls `gcloud builds triggers update` to keep the
+# deploy trigger's _EXTRA_DEPLOY_ARGS substitution in sync with terraform
+# outputs. Requires cloudbuild.builds.editor.
+grant_role "serviceAccount:${BUILD_SA}" "roles/cloudbuild.builds.editor"
+# tf-apply's reconcile step writes new versions of DATABASE_URL / REDIS_URL /
+# QDRANT_URL (secret schemas are created by terraform; version writes happen
+# inside the build). Per-secret IAM bindings for these are granted by
+# terraform (infra/terraform/secrets.tf), but we also grant project-wide
+# secretVersionAdder so the very first run — before terraform has created the
+# secrets or the per-secret bindings — can create versions if needed.
+grant_role "serviceAccount:${BUILD_SA}" "roles/secretmanager.secretVersionAdder"
 
-# Grant the build/run SA per-secret accessor bindings (defense-in-depth on top
-# of project-level secretmanager.secretAccessor above).
-for secret in API_KEY_PEPPER DB_PASSWORD QDRANT_API_KEY QDRANT_URL E2B_API_KEY \
+# Per-secret accessor bindings for the static, user-supplied secrets
+# (DATABASE_URL / REDIS_URL / QDRANT_URL are managed by terraform).
+for secret in API_KEY_PEPPER DB_PASSWORD QDRANT_API_KEY E2B_API_KEY \
               LANGFUSE_PUBLIC_KEY LANGFUSE_SECRET_KEY PORTAL_JWT_SECRET INGEST_TOKEN; do
   if gcloud secrets describe "$secret" --project="$PROJECT_ID" &>/dev/null; then
     gcloud secrets add-iam-policy-binding "$secret" \

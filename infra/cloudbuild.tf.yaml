@@ -2,17 +2,32 @@
 #
 # Trigger created by scripts/bootstrap_gcp.sh (tf-apply trigger).
 # State is stored in GCS: gs://${PROJECT_ID}-tf-state/terraform/state
+#
+# After a successful apply, the `reconcile-deploy` step:
+#   1. Writes new secret versions for DATABASE_URL, REDIS_URL, QDRANT_URL from
+#      terraform outputs (Cloud SQL connection name, Redis host/port, Qdrant URL).
+#   2. Updates the `deploy` trigger's `_EXTRA_DEPLOY_ARGS` substitution so all
+#      subsequent app-code pushes deploy to Cloud Run with the correct secret
+#      bindings, Cloud SQL attachment, and VPC connector — no manual steps.
 
 substitutions:
   _REGION: us-central1
+  _DEPLOY_TRIGGER: deploy
 
 options:
   logging: CLOUD_LOGGING_ONLY
 
 timeout: 1200s
 
+availableSecrets:
+  secretManager:
+    - versionName: projects/$PROJECT_ID/secrets/DB_PASSWORD/versions/latest
+      env: DB_PASSWORD
+
 steps:
-  # terraform init with GCS backend — bucket is always ${PROJECT_ID}-tf-state
+  # ------------------------------------------------------------------
+  # 1. terraform init — GCS backend at gs://${PROJECT_ID}-tf-state
+  # ------------------------------------------------------------------
   - name: hashicorp/terraform:1.10
     id: tf-init
     entrypoint: sh
@@ -27,7 +42,9 @@ steps:
           -input=false \
           -reconfigure
 
-  # terraform validate — catches syntax errors before applying
+  # ------------------------------------------------------------------
+  # 2. terraform validate
+  # ------------------------------------------------------------------
   - name: hashicorp/terraform:1.10
     id: tf-validate
     entrypoint: sh
@@ -39,7 +56,9 @@ steps:
         terraform validate
     waitFor: [tf-init]
 
-  # terraform plan — writes plan file for apply; output visible in Cloud Build logs
+  # ------------------------------------------------------------------
+  # 3. terraform plan — writes a plan file for apply
+  # ------------------------------------------------------------------
   - name: hashicorp/terraform:1.10
     id: tf-plan
     entrypoint: sh
@@ -55,7 +74,9 @@ steps:
           -input=false
     waitFor: [tf-validate]
 
-  # terraform apply — executes the saved plan
+  # ------------------------------------------------------------------
+  # 4. terraform apply — executes the saved plan
+  # ------------------------------------------------------------------
   - name: hashicorp/terraform:1.10
     id: tf-apply
     entrypoint: sh
@@ -67,14 +88,100 @@ steps:
         terraform apply -auto-approve /workspace/tf.plan
     waitFor: [tf-plan]
 
-  # Emit outputs to Cloud Build logs for reference
+  # ------------------------------------------------------------------
+  # 5. Emit terraform outputs as JSON for the reconcile step.
+  #    Writes /workspace/tf_outputs.json — consumed by step 6.
+  # ------------------------------------------------------------------
   - name: hashicorp/terraform:1.10
     id: tf-output
     entrypoint: sh
     args:
       - -c
       - |
+        set -eu
         cd infra/terraform
-        echo "=== Terraform outputs ==="
+        terraform output -json > /workspace/tf_outputs.json
+        echo "=== Terraform outputs (summary) ==="
         terraform output
     waitFor: [tf-apply]
+
+  # ------------------------------------------------------------------
+  # 6. Reconcile deploy trigger + derived secrets.
+  #
+  # This step is the whole reason this file is more than "terraform apply" —
+  # it makes the bootstrap → apply → deploy flow truly zero-manual-steps.
+  #
+  # Idempotent: compares computed values to current secret versions and skips
+  # writes when unchanged; compares trigger substitution to target and skips
+  # update when unchanged. Safe to run on every apply.
+  # ------------------------------------------------------------------
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    id: reconcile-deploy
+    entrypoint: bash
+    secretEnv: [DB_PASSWORD]
+    args:
+      - -c
+      - |
+        set -euo pipefail
+
+        # --- Read terraform outputs (from /workspace/tf_outputs.json) ---
+        json() { python3 -c "import json,sys;print(json.load(open('/workspace/tf_outputs.json'))['$$1']['value'])"; }
+
+        SQL_CONN=$(json database_connection_name)
+        REDIS_HOST=$(json redis_host)
+        REDIS_PORT=$(json redis_port)
+        QDRANT_URL=$(json qdrant_url)
+        VPC_CONN_ID=$(json vpc_connector_id)  # projects/P/locations/R/connectors/NAME
+        VPC_CONN_NAME="$${VPC_CONN_ID##*/}"
+
+        DB_USER="querymesh"
+        DB_NAME="querymesh"
+        DATABASE_URL="postgresql+asyncpg://$${DB_USER}:$${DB_PASSWORD}@/$${DB_NAME}?host=/cloudsql/$${SQL_CONN}"
+        REDIS_URL="redis://$${REDIS_HOST}:$${REDIS_PORT}/0"
+
+        # --- Helper: upsert a secret version only if the value changed ---
+        upsert_secret_version() {
+          local name="$$1" value="$$2"
+          local current
+          current=$$(gcloud secrets versions access latest \
+            --project="${PROJECT_ID}" --secret="$${name}" 2>/dev/null || echo "")
+          if [ "$${current}" = "$${value}" ]; then
+            echo "  [=] $${name} unchanged"
+          else
+            printf '%s' "$${value}" | gcloud secrets versions add "$${name}" \
+              --project="${PROJECT_ID}" --data-file=- >/dev/null
+            echo "  [+] $${name} updated (new version)"
+          fi
+        }
+
+        echo "=== Reconciling derived secrets ==="
+        upsert_secret_version DATABASE_URL "$${DATABASE_URL}"
+        upsert_secret_version REDIS_URL    "$${REDIS_URL}"
+        upsert_secret_version QDRANT_URL   "$${QDRANT_URL}"
+
+        # --- Compose _EXTRA_DEPLOY_ARGS for the deploy trigger ---
+        # Spaces are intentional: Cloud Run's gcloud run deploy reads this as a
+        # single flag blob via shell expansion in infra/cloudbuild.yaml.
+        EXTRA_ARGS="--set-secrets=DATABASE_URL=DATABASE_URL:latest,REDIS_URL=REDIS_URL:latest,QDRANT_URL=QDRANT_URL:latest,QDRANT_API_KEY=QDRANT_API_KEY:latest,LANGFUSE_PUBLIC_KEY=LANGFUSE_PUBLIC_KEY:latest,LANGFUSE_SECRET_KEY=LANGFUSE_SECRET_KEY:latest,PORTAL_JWT_SECRET=PORTAL_JWT_SECRET:latest --add-cloudsql-instances=$${SQL_CONN} --vpc-connector=$${VPC_CONN_NAME} --vpc-egress=private-ranges-only --set-env-vars=^@^GOOGLE_CLOUD_PROJECT=${PROJECT_ID}@GOOGLE_CLOUD_LOCATION=${_REGION}@QDRANT_COLLECTION=gcp_docs@RAG_VERTEX_RERANK=true@INGESTION_GCP_DOCS_DIR=/app/corpus/gcp_docs"
+
+        echo
+        echo "=== Reconciling deploy trigger substitution ==="
+
+        # Skip update if the substitution already matches (idempotent, quiet logs).
+        CURRENT_ARGS=$$(gcloud builds triggers describe "${_DEPLOY_TRIGGER}" \
+          --project="${PROJECT_ID}" --region="${_REGION}" \
+          --format='value(substitutions._EXTRA_DEPLOY_ARGS)' 2>/dev/null || echo "")
+
+        if [ "$${CURRENT_ARGS}" = "$${EXTRA_ARGS}" ]; then
+          echo "  [=] deploy trigger _EXTRA_DEPLOY_ARGS unchanged"
+        else
+          gcloud builds triggers update github "${_DEPLOY_TRIGGER}" \
+            --project="${PROJECT_ID}" --region="${_REGION}" \
+            --update-substitutions="_EXTRA_DEPLOY_ARGS=$${EXTRA_ARGS}" >/dev/null
+          echo "  [+] deploy trigger _EXTRA_DEPLOY_ARGS updated"
+        fi
+
+        echo
+        echo "Reconcile complete. Next push to main will deploy with the correct"
+        echo "Cloud SQL attachment, VPC connector, and secret bindings."
+    waitFor: [tf-output]
