@@ -20,8 +20,13 @@ export function setStoredApiKey(key: string): void {
   localStorage.setItem(API_KEY_STORAGE, key);
 }
 
+export function clearSession(): void {
+  if (typeof window !== "undefined")
+    sessionStorage.removeItem(SESSION_STORAGE_KEY);
+}
+
 export function clearAuth(): void {
   localStorage.removeItem(PORTAL_JWT_KEY);
   localStorage.removeItem(API_KEY_STORAGE);
-  localStorage.removeItem(SESSION_STORAGE_KEY);
+  clearSession();
 }

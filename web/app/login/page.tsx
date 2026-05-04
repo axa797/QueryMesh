@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { getStoredApiKey, setPortalJwt, setStoredApiKey } from "@/lib/auth-storage";
+import { clearSession, getStoredApiKey, setPortalJwt, setStoredApiKey } from "@/lib/auth-storage";
 import { postJson, type ApiKeyCreateResponse, type PortalTokenResponse } from "@/lib/querymesh";
 
 export default function LoginPage() {
@@ -29,6 +29,7 @@ export default function LoginPage() {
         });
         setStoredApiKey(minted.api_key);
       }
+      clearSession();
       router.push("/chat");
       router.refresh();
     } catch (ex) {

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { setPortalJwt, setStoredApiKey } from "@/lib/auth-storage";
+import { clearSession, setPortalJwt, setStoredApiKey } from "@/lib/auth-storage";
 import { postJson, type ApiKeyCreateResponse, type PortalTokenResponse } from "@/lib/querymesh";
 
 export default function RegisterPage() {
@@ -27,6 +27,7 @@ export default function RegisterPage() {
         Authorization: `Bearer ${res.access_token}`,
       });
       setStoredApiKey(minted.api_key);
+      clearSession();
       router.push("/chat");
       router.refresh();
     } catch (ex) {
