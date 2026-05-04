@@ -136,6 +136,7 @@ steps:
         PROXY_PID=$$!
         sleep 4
         echo "Running Alembic migrations..."
+        cd /app
         DATABASE_URL="postgresql+asyncpg://querymesh:$$DB_PASSWORD@127.0.0.1:$${PROXY_PORT}/querymesh" \
           uv run alembic upgrade head
         echo "Migrations complete."
