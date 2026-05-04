@@ -43,7 +43,7 @@ output "deploy_command" {
         --add-cloudsql-instances=${google_sql_database_instance.postgres.connection_name}
         --vpc-connector=${google_vpc_access_connector.connector.name}
         --vpc-egress=private-ranges-only
-        --set-env-vars=GOOGLE_CLOUD_PROJECT=${var.project_id},GOOGLE_CLOUD_LOCATION=${var.region},QDRANT_COLLECTION=gcp_docs,RAG_VERTEX_RERANK=true,BIGQUERY_PROJECT_ID=${var.project_id},BIGQUERY_DATASET=querymesh
+        --set-env-vars=GOOGLE_CLOUD_PROJECT=${var.project_id},GOOGLE_CLOUD_LOCATION=${var.region},QDRANT_COLLECTION=gcp_docs,RAG_VERTEX_RERANK=true,BIGQUERY_PROJECT_ID=${var.project_id},BIGQUERY_DATASET=querymesh,INGESTION_GCP_DOCS_DIR=/app/corpus/gcp_docs
       "
   EOT
 }

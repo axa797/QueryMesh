@@ -26,6 +26,10 @@ COPY tools ./tools
 COPY evals ./evals
 COPY alembic ./alembic
 COPY alembic.ini .
+# Corpus: pre-fetched markdown files written by scripts/fetch_next26_corpus.py.
+# Cloud Build runs that script before docker build; the directory is gitignored locally.
+# If the directory is absent (local builds without corpus), ingest will fail gracefully.
+COPY corpus/gcp_docs ./corpus/gcp_docs
 
 RUN uv sync --frozen --no-dev
 

@@ -37,10 +37,30 @@ availableSecrets:
 
 steps:
   # ------------------------------------------------------------------
-  # 1. Build image
+  # 0. Fetch corpus — writes corpus/gcp_docs/*.md from the web.
+  #    Skipped if the directory already exists and is non-empty (e.g. cached workspace).
+  #    The Dockerfile COPYs corpus/gcp_docs/ into the image so ingest has files to read.
+  # ------------------------------------------------------------------
+  - name: python:3.12-slim
+    id: fetch-corpus
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        if [ -d corpus/gcp_docs ] && [ "$(ls -A corpus/gcp_docs 2>/dev/null)" ]; then
+          echo "corpus/gcp_docs already present ($(ls corpus/gcp_docs | wc -l) files) — skipping fetch."
+          exit 0
+        fi
+        PYTHONPATH=. python scripts/fetch_next26_corpus.py
+        echo "Corpus fetch complete: $(ls corpus/gcp_docs | wc -l) files"
+
+  # ------------------------------------------------------------------
+  # 1. Build image (corpus/gcp_docs is now present from step 0)
   # ------------------------------------------------------------------
   - name: gcr.io/cloud-builders/docker
     id: build
+    waitFor: [fetch-corpus]
     args:
       - build
       - -f
@@ -136,6 +156,7 @@ steps:
           --max-instances 10 \
           --port 8080 \
           --allow-unauthenticated \
+          --set-env-vars=INGESTION_GCP_DOCS_DIR=/app/corpus/gcp_docs \
           --set-secrets=API_KEY_PEPPER=API_KEY_PEPPER:latest,E2B_API_KEY=E2B_API_KEY:latest \
           ${_EXTRA_DEPLOY_ARGS}
     waitFor: [migrate]
