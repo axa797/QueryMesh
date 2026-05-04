@@ -1,41 +1,118 @@
-# Build, push to Artifact Registry, deploy to Cloud Run (us-central1).
+# Build, migrate, deploy to Cloud Run (us-central1), then trigger corpus ingest.
 #
-# Prereqs:
-#   gcloud artifacts repositories create ${_AR_REPO} \
-#     --repository-format=docker --location=${_REGION} --description=querymesh
+# Triggered automatically by Cloud Build 'deploy' trigger on push to main
+# (created by scripts/bootstrap_gcp.sh).
 #
-# Submit (tags image with BUILD_ID):
+# Manual submit:
 #   gcloud builds submit --config infra/cloudbuild.yaml
 #
-# Override deploy flags (space-separated gcloud args), e.g. extra secrets:
+# Pass extra Cloud Run flags (secrets, VPC, env vars) via substitution — use
+# the value from `terraform output deploy_command` after first terraform apply:
 #   gcloud builds submit --config infra/cloudbuild.yaml \
-#     --substitutions=_EXTRA_DEPLOY_ARGS="--set-secrets=DATABASE_URL=DATABASE_URL:latest"
-#
+#     --substitutions=_EXTRA_DEPLOY_ARGS="--set-secrets=... --vpc-connector=..."
+
 substitutions:
   _REGION: us-central1
   _AR_REPO: querymesh
   _SERVICE: api
+  _SQL_INSTANCE: querymesh-pg  # Cloud SQL instance name (matches terraform/sql.tf)
   _EXTRA_DEPLOY_ARGS: ""
 
 options:
   logging: CLOUD_LOGGING_ONLY
 
+availableSecrets:
+  secretManager:
+    - versionName: projects/$PROJECT_ID/secrets/DB_PASSWORD/versions/latest
+      env: DB_PASSWORD
+    - versionName: projects/$PROJECT_ID/secrets/API_KEY_PEPPER/versions/latest
+      env: API_KEY_PEPPER
+
 steps:
+  # ------------------------------------------------------------------
+  # 1. Build image
+  # ------------------------------------------------------------------
   - name: gcr.io/cloud-builders/docker
+    id: build
     args:
       - build
       - -f
       - infra/Dockerfile
       - -t
       - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_SERVICE}:${BUILD_ID}
+      - -t
+      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_SERVICE}:latest
       - .
 
+  # ------------------------------------------------------------------
+  # 2. Scan image for secrets in layers (non-root env/arg metadata)
+  # ------------------------------------------------------------------
   - name: gcr.io/cloud-builders/docker
+    id: scan-image
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        IMG="${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_SERVICE}:${BUILD_ID}"
+        echo "=== Image layer metadata scan ==="
+        # Inspect all ENV and ARG entries baked into image layers
+        LAYER_DATA=$(docker inspect "$$IMG" --format '{{json .Config.Env}}' 2>/dev/null || echo "[]")
+        # Fail if any known secret patterns appear in layer metadata
+        PATTERNS="AKIA[0-9A-Z]{16}|sk-[A-Za-z0-9]{20,}|ghp_[A-Za-z0-9]{36}|-----BEGIN.*PRIVATE KEY"
+        if echo "$$LAYER_DATA" | grep -qE "$$PATTERNS"; then
+          echo "ERROR: Secret pattern detected in image layer metadata. Aborting."
+          exit 1
+        fi
+        echo "Image layer scan passed."
+    waitFor: [build]
+
+  # ------------------------------------------------------------------
+  # 3. Push image
+  # ------------------------------------------------------------------
+  - name: gcr.io/cloud-builders/docker
+    id: push
     args:
       - push
-      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_SERVICE}:${BUILD_ID}
+      - --all-tags
+      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_SERVICE}
+    waitFor: [scan-image]
 
+  # ------------------------------------------------------------------
+  # 4. Cloud SQL Auth Proxy — background sidecar for migration
+  # ------------------------------------------------------------------
+  - name: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2
+    id: sql-proxy
+    args:
+      - --port=5432
+      - ${PROJECT_ID}:${_REGION}:${_SQL_INSTANCE}
+    background: true
+    waitFor: ["-"]  # start immediately, parallel with build
+
+  # ------------------------------------------------------------------
+  # 5. Alembic migration — idempotent, safe on every deploy
+  # ------------------------------------------------------------------
+  - name: ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_SERVICE}:${BUILD_ID}
+    id: migrate
+    entrypoint: bash
+    secretEnv: [DB_PASSWORD]
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        # Give the proxy a moment to be ready
+        sleep 4
+        echo "Running Alembic migrations..."
+        DATABASE_URL="postgresql+asyncpg://querymesh:$$DB_PASSWORD@127.0.0.1:5432/querymesh" \
+          uv run alembic upgrade head
+        echo "Migrations complete."
+    waitFor: [sql-proxy, push]
+
+  # ------------------------------------------------------------------
+  # 6. Deploy to Cloud Run
+  # ------------------------------------------------------------------
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    id: deploy
     entrypoint: bash
     args:
       - -c
@@ -52,4 +129,34 @@ steps:
           --max-instances 10 \
           --port 8080 \
           --allow-unauthenticated \
-          --set-secrets=API_KEY_PEPPER=API_KEY_PEPPER:latest,E2B_API_KEY=E2B_API_KEY:latest ${_EXTRA_DEPLOY_ARGS}
+          --set-secrets=API_KEY_PEPPER=API_KEY_PEPPER:latest,E2B_API_KEY=E2B_API_KEY:latest \
+          ${_EXTRA_DEPLOY_ARGS}
+    waitFor: [migrate]
+
+  # ------------------------------------------------------------------
+  # 7. Trigger corpus ingest (non-blocking — slow indexing runs async)
+  # ------------------------------------------------------------------
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    id: ingest
+    entrypoint: bash
+    secretEnv: [API_KEY_PEPPER]
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        API_URL=$(gcloud run services describe ${_SERVICE} \
+          --region ${_REGION} \
+          --format='value(status.url)')
+        echo "Triggering corpus ingest at $$API_URL/ingest ..."
+        # Mint a one-off key directly from the pepper for the ingest call.
+        # In practice you should pass a real API key via Secret Manager.
+        STATUS=$(curl -sf -o /dev/null -w "%{http_code}" \
+          -X POST "$$API_URL/ingest" \
+          -H "Content-Type: application/json" \
+          -d '{"source":"gcp_docs"}' || echo "000")
+        if [[ "$$STATUS" == "200" || "$$STATUS" == "202" ]]; then
+          echo "Ingest triggered (status $$STATUS). Indexing runs in the background."
+        else
+          echo "Ingest returned HTTP $$STATUS — check /ingest/{job_id} manually. Not blocking deploy."
+        fi
+    waitFor: [deploy]

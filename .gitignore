@@ -1,4 +1,14 @@
+# Secrets / credentials — never commit
 .env
+.env.*
+!.env.example
+*.pem
+*.p12
+*.key
+service_account*.json
+application_default_credentials.json
+
+# Python
 .venv/
 __pycache__/
 *.py[cod]
@@ -9,11 +19,21 @@ __pycache__/
 dist/
 build/
 *.egg-info/
+
+# Editor
 .idea/
 .vscode/
 .DS_Store
 
-# Local GCP documentation PDFs (Phase 2 corpus; not committed)
+# Terraform — state and variable files contain secrets
+infra/terraform/terraform.tfvars
+infra/terraform/.terraform/
+infra/terraform/.terraform.lock.hcl
+infra/terraform/*.tfstate
+infra/terraform/*.tfstate.backup
+infra/terraform/*.tfplan
+
+# Local GCP documentation PDFs (corpus; not committed)
 corpus/
 
 # Harvested eval data (runtime output; regenerate with evals/harvest.py)

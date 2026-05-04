@@ -1,0 +1,15 @@
+# Copy to terraform.tfvars and fill in. This file is gitignored.
+# Secret values (passwords, API keys) are NOT stored here — they live in
+# Secret Manager, created by scripts/bootstrap_gcp.sh.
+
+project_id = "querymesh-kb"
+region     = "us-central1"
+
+# Optional overrides (defaults match production naming conventions):
+# db_instance_name    = "querymesh-pg"
+# db_name             = "querymesh"
+# db_user             = "querymesh"
+# redis_instance_name = "querymesh-redis"
+# qdrant_service_name = "qdrant"
+# vpc_connector_name  = "querymesh-connector"
+# qdrant_image        = "qdrant/qdrant:v1.13.4"

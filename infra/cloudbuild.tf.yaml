@@ -1,0 +1,98 @@
+# Terraform apply pipeline — triggered by Cloud Build when infra/terraform/** changes on main.
+#
+# Trigger created by scripts/bootstrap_gcp.sh (tf-apply trigger).
+# State is stored in GCS: gs://${PROJECT_ID}-tf-state/terraform/state
+#
+# Required substitutions (set as defaults or pass via --substitutions):
+#   _TF_STATE_BUCKET  — GCS bucket name (default: ${PROJECT_ID}-tf-state)
+#   _REGION           — GCP region (default: us-central1)
+
+substitutions:
+  _REGION: us-central1
+  _TF_STATE_BUCKET: ""  # resolved at runtime: ${PROJECT_ID}-tf-state
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: 1200s
+
+steps:
+  # Resolve the state bucket name if not overridden
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    id: resolve-bucket
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        BUCKET="${_TF_STATE_BUCKET:-${PROJECT_ID}-tf-state}"
+        echo "TF_STATE_BUCKET=$$BUCKET" > /workspace/tf_env.sh
+        echo "Terraform state bucket: $$BUCKET"
+
+  # terraform init with GCS backend
+  - name: hashicorp/terraform:1.10
+    id: tf-init
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        source /workspace/tf_env.sh
+        cd infra/terraform
+        terraform init \
+          -backend-config="bucket=$$TF_STATE_BUCKET" \
+          -backend-config="prefix=terraform/state" \
+          -input=false \
+          -reconfigure
+    waitFor: [resolve-bucket]
+
+  # terraform validate — catches syntax errors before applying
+  - name: hashicorp/terraform:1.10
+    id: tf-validate
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        cd infra/terraform
+        terraform validate
+    waitFor: [tf-init]
+
+  # terraform plan — writes plan file for apply; output visible in Cloud Build logs
+  - name: hashicorp/terraform:1.10
+    id: tf-plan
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        cd infra/terraform
+        terraform plan \
+          -var="project_id=${PROJECT_ID}" \
+          -var="region=${_REGION}" \
+          -out=/workspace/tf.plan \
+          -input=false
+    waitFor: [tf-validate]
+
+  # terraform apply — executes the saved plan
+  - name: hashicorp/terraform:1.10
+    id: tf-apply
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        cd infra/terraform
+        terraform apply -auto-approve /workspace/tf.plan
+    waitFor: [tf-plan]
+
+  # Emit outputs to Cloud Build logs for reference
+  - name: hashicorp/terraform:1.10
+    id: tf-output
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        cd infra/terraform
+        echo "=== Terraform outputs ==="
+        terraform output
+    waitFor: [tf-apply]
