@@ -24,7 +24,7 @@ dependencies = [
   "psycopg[binary]>=3.3",
   "pydantic-settings>=2.14.0",
   "email-validator>=2.0",
-  "qdrant-client>=1.17.0,<1.18.0",
+  "qdrant-client>=1.17.0",
   "redis>=7.4.0",
   "sqlalchemy[asyncio]>=2",
   "uvicorn[standard]>=0.32",
@@ -45,7 +45,7 @@ dev = [
 eval = [
     "datasets>=2.14",
     "langchain-google-vertexai>=2.0",
-    "ragas>=0.1",
+    "ragas>=0.4,<1.0",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -85,7 +85,7 @@ testpaths = ["evals", "tests"]
 pythonpath = ["."]
 markers = [
   "integration: requires DATABASE_URL and running Postgres",
-  "eval: RAGAS/DeepEval LLM evals; run nightly or with RUN_EVAL=1",
+  "eval: RAGAS LLM evals; run with RUN_EVAL=1 and uv sync --group eval",
 ]
 addopts = ["-m", "not integration and not eval"]
 asyncio_mode = "auto"

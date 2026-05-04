@@ -1,83 +1,61 @@
 # Scripts
 
-## `mint_api_key.py`
+## `bootstrap_gcp.sh` — one-time GCP project setup
 
-Issue API keys (see [AGENTS.md](../AGENTS.md) Development section).
-
-**First-time local stack:** [docs/local_dev.md](../docs/local_dev.md) · `./scripts/prepare_local.sh`.
-
-## `fetch_gcp_corpus_pdfs.sh`
-
-Downloads **16** public GCP PDFs (cheat sheet + whitepapers) and **22** [Gemini Enterprise Agent Platform](https://docs.cloud.google.com/gemini-enterprise-agent-platform) doc pages as `.md` into `./corpus/gcp_docs/`. Requires `curl`, `uv`, and network access.
+Run **once** from [Cloud Shell](https://shell.cloud.google.com) to provision all backing
+services and CI/CD triggers. See [infra/README.md](../infra/README.md) for the full deploy flow.
 
 ```bash
-./scripts/fetch_gcp_corpus_pdfs.sh
-# optional: ./scripts/fetch_gcp_corpus_pdfs.sh /path/to/corpus/gcp_docs
+bash scripts/bootstrap_gcp.sh
 ```
 
-Details and alternatives (manual whitepaper picks, print-to-PDF, **Gemini Enterprise Agent Platform** HTML → Markdown): [docs/corpus_runbook.md](../docs/corpus_runbook.md).
+## `check_secrets.sh` — secret scanner
 
-### `fetch_gemini_enterprise_agent_platform_docs.py`
-
-Downloads **22** public documentation pages from [Gemini Enterprise Agent Platform](https://docs.cloud.google.com/gemini-enterprise-agent-platform) (plus [Agent Registry](https://docs.cloud.google.com/agent-registry/overview)) into `corpus/gcp_docs/` as `.md` for ingestion. Run alone or via `fetch_gcp_corpus_pdfs.sh`.
+Scans git history and tracked files for accidentally committed credentials. Run before
+pushing to a new remote or as part of a security review.
 
 ```bash
-PYTHONPATH=. uv run python scripts/fetch_gemini_enterprise_agent_platform_docs.py
-# optional: --out /path/to/gcp_docs  --delay 1.0
+bash scripts/check_secrets.sh           # warn only
+bash scripts/check_secrets.sh --strict  # exit 1 on any finding
 ```
 
-## HTTP ingestion API (`POST /ingest`, Phase 15)
+## `fetch_next26_corpus.py` — corpus refresh
 
-From a running API, with `INGESTION_GCP_DOCS_DIR` pointing at your document tree and Qdrant + Vertex available:
+Downloads ~69 Google Cloud Next '26 documentation pages into `corpus/gcp_docs/` for RAG
+ingestion. Use `--clean` to replace the existing corpus entirely.
 
 ```bash
-curl -sS -X POST "http://localhost:8000/ingest" \
-  -H "Authorization: Bearer YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"source":"gcp_docs"}'
-# Poll: GET /ingest/{job_id} with the same Authorization header.
+PYTHONPATH=. uv run python scripts/fetch_next26_corpus.py --clean
 ```
 
-**Corpus layout, PDF sourcing, and reindexing:** [docs/corpus_runbook.md](../docs/corpus_runbook.md).
+See [docs/corpus_runbook.md](../docs/corpus_runbook.md) for the full refresh workflow
+(fetch → drop Qdrant collection → ingest → harvest evals).
 
-CLI alternative: `PYTHONPATH=. uv run python -m ingestion.indexer --source /path/to/docs --google-cloud-project YOUR_PROJECT_ID`.
+## `mint_api_key.py` — issue API keys
 
-## `bootstrap_bq.py` — synthetic BigQuery doc metadata (spec §6.4)
-
-**Prereqs:** [Application Default Credentials](https://cloud.google.com/docs/authentication/application-default-credentials) (`gcloud auth application-default login`). **Do not** rely on committed service account JSON.
-
-**Run (from repo root):**
+Mints a raw API key, stores its HMAC-SHA256 digest in Postgres, and prints the key once.
+Requires `DATABASE_URL` and `API_KEY_PEPPER` to be set.
 
 ```bash
-PYTHONPATH=. uv run python scripts/bootstrap_bq.py --project YOUR_PROJECT_ID
+PYTHONPATH=. uv run python scripts/mint_api_key.py
 ```
 
-Optional: `--dataset querymesh` (default), `--location US`, `--force` to truncate and reseed.
+## `prepare_local.sh` — local dev setup
 
-Creates `YOUR_PROJECT_ID.querymesh.doc_metadata` with columns `doc_name`, `section`, `word_count`, `last_updated`, `product_area`, and inserts a small deterministic seed if the table is empty.
+Automates the initial local stack setup (Docker Compose services up, Alembic migrations,
+key minting). See [docs/local_dev.md](../docs/local_dev.md).
 
-### IAM (least privilege for the **API** workload)
+```bash
+bash scripts/prepare_local.sh
+```
 
-Grant the Cloud Run / API service account (not end users):
+## BigQuery — analytics agent IAM
 
-- **`roles/bigquery.jobUser`** on the project (or a custom role that includes `bigquery.jobs.create`), so queries can run.
-- **`roles/bigquery.dataViewer`** on dataset `querymesh` (tighter than project-wide), so `SELECT` on `doc_metadata` works.
+The analytics agent uses `BIGQUERY_PROJECT_ID` / `BIGQUERY_DATASET` to run read-only
+queries. Grant the Cloud Run service account (set up by `bootstrap_gcp.sh`):
 
-The human running **bootstrap** once needs broader rights (e.g. `bigquery.admin` or editor on the dataset) to create the dataset and table.
+- `roles/bigquery.jobUser` — on the project
+- `roles/bigquery.dataViewer` — on the `querymesh` dataset
 
-### Env vars
-
-- `BIGQUERY_PROJECT_ID` — often same as `GOOGLE_CLOUD_PROJECT`
-- `BIGQUERY_DATASET` — default `querymesh`
-- `BIGQUERY_LOCATION` — dataset location for bootstrap (default `US` in the script)
-
-## E2B — code execution sandbox (spec §6.3, Phase 12)
-
-**Prereqs:** E2B account + API key; custom template built from [e2b/Dockerfile](../e2b/Dockerfile) (Python + `google-cloud-*` wheels, **no ADC** baked in). Build/publish with the [E2B template CLI](https://e2b.dev/docs/template/quickstart); set **`E2B_TEMPLATE_ID`** to the template name or ID you deployed (default in code: `querymesh-code`).
-
-**Runtime env (API):**
-
-- `E2B_API_KEY` — required to run user code in the sandbox.
-- Optional tuning: see `code_exec_*` and `e2b_*` fields in [api/settings.py](../api/settings.py) (15s command wall, 64KiB combined stdout/stderr cap, max 2 concurrent executions per process).
-
-Sandboxes are created with **`allow_internet_access=False`**. The API must not inject GCP credentials into the sandbox environment.
+Bootstrap the `doc_metadata` table once via the BigQuery console or `bq` CLI if the
+analytics agent's sample queries require it.

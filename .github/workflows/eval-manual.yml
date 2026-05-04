@@ -1,4 +1,4 @@
-# Manual validation for eval harness (no LLM / no secrets). Phase 2 spec_phase2 optional workflow_dispatch.
+# Manual validation for eval harness (no LLM / no secrets). Trigger via workflow_dispatch in GitHub Actions UI.
 
 name: Eval harness (validate only)
 
