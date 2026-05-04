@@ -2,12 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { getPortalJwt } from "@/lib/auth-storage";
 
 export default function Home() {
   const [signedIn, setSignedIn] = useState(false);
-  const router = useRouter();
 
   useEffect(() => {
     setSignedIn(!!getPortalJwt());
