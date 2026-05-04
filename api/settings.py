@@ -84,6 +84,11 @@ class Settings(BaseSettings):
         default=None,
         description="Comma-separated origins, or * for any (demo/local only).",
     )
+    # Starlette allow_origin_regex (e.g. https://.*\\.vercel\\.app for previews + prod).
+    cors_allow_origin_regex: str | None = Field(
+        default=None,
+        description="Regex for permitted browser Origin headers (e.g. all *.vercel.app).",
+    )
 
     # E2B / code execution (§6.3, §15.12) — optional locally.
     # template: unset → SDK default (same as Sandbox.create() with no template arg).
@@ -107,6 +112,7 @@ class Settings(BaseSettings):
         "e2b_template_id",
         "portal_jwt_secret",
         "ingest_token",
+        "cors_allow_origin_regex",
         mode="before",
     )
     @classmethod

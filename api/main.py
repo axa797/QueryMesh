@@ -44,19 +44,27 @@ app = FastAPI(title="querymesh", version="0.1.0", lifespan=lifespan)
 
 
 def _configure_cors(application: FastAPI) -> None:
-    raw = (get_settings().cors_allow_origins or "").strip()
-    if not raw:
+    settings = get_settings()
+    raw = (settings.cors_allow_origins or "").strip()
+    regex = (settings.cors_allow_origin_regex or "").strip()
+    if not raw and not regex:
         return
-    origins = ["*"] if raw == "*" else [o.strip() for o in raw.split(",") if o.strip()]
-    if not origins:
-        return
-    application.add_middleware(
-        CORSMiddleware,
-        allow_origins=origins,
-        allow_credentials=False,
-        allow_methods=["GET", "POST", "OPTIONS"],
-        allow_headers=["Authorization", "Content-Type"],
+    origins = (
+        ["*"]
+        if raw == "*"
+        else ([o.strip() for o in raw.split(",") if o.strip()] if raw else [])
     )
+    if raw and raw != "*" and not origins:
+        return
+    kwargs: dict = {
+        "allow_origins": origins,
+        "allow_credentials": False,
+        "allow_methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Authorization", "Content-Type", "Accept"],
+    }
+    if regex:
+        kwargs["allow_origin_regex"] = regex
+    application.add_middleware(CORSMiddleware, **kwargs)
 
 
 @app.exception_handler(HTTPException)
