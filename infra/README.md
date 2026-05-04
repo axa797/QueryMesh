@@ -70,13 +70,26 @@ Push any app code change to `main`. The `deploy` Cloud Build trigger fires and r
 3. Push to Artifact Registry
 4. Run `alembic upgrade head` via Cloud SQL Auth Proxy sidecar
 5. `gcloud run deploy api` (with the flag blob reconciled by `tf-apply`)
-6. `POST /ingest` to reload the corpus into Qdrant
+6. `POST /ingest` to reload the corpus into Qdrant (when conditions match)
+
+### Step 3b — Deploy Web UI to Cloud Run (optional)
+
+After the API is live, run once from repo root:
+
+```bash
+gcloud builds submit --config infra/cloudbuild-web.yaml
+```
+
+Or push under `web/` on `main` once the **`web-deploy`** trigger exists ([bootstrap_gcp.sh](../scripts/bootstrap_gcp.sh) creates it for new projects). The build resolves the public **`api`** URL and bakes it into the Next.js bundle.
+
+Set **`CORS_ALLOW_ORIGINS`** on the **`api`** service to include the printed **`web`** URL.
 
 ### Ongoing
 
 | What changed | What to push | Which trigger fires |
 |---|---|---|
-| App code | Anything outside `infra/terraform/` | `deploy` |
+| App code (not `web/` only) | Changes outside `infra/terraform/**` and `web/**` | `deploy` |
+| Web UI only | `web/**` | `web-deploy` |
 | Infrastructure | `infra/terraform/**` | `tf-apply` |
 | PR opened / updated | Any branch | GitHub Actions (lint + pytest) |
 

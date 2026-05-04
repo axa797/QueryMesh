@@ -325,7 +325,7 @@ else
       --branch-pattern="^main$" \
       --build-config="infra/cloudbuild.yaml" \
       --included-files="**" \
-      --ignored-files="infra/terraform/**" \
+      --ignored-files="infra/terraform/**,web/**" \
       --service-account="$TRIGGER_SA" \
       --description="Build, migrate, and deploy api service on push to main"
     ok "Created trigger: deploy"
@@ -349,6 +349,26 @@ else
       --description="Run terraform apply when infra/terraform/** changes on main"
     ok "Created trigger: tf-apply"
   fi
+
+  # Trigger: Next.js web UI → Cloud Run (web/** only)
+  if gcloud builds triggers describe "web-deploy" \
+       --project="$PROJECT_ID" --region="$REGION" &>/dev/null; then
+    ok "Trigger 'web-deploy' already exists"
+  else
+    gcloud builds triggers create github \
+      --project="$PROJECT_ID" \
+      --region="$REGION" \
+      --name="web-deploy" \
+      --repo-owner="$GH_OWNER" \
+      --repo-name="$GH_REPO" \
+      --branch-pattern="^main$" \
+      --build-config="infra/cloudbuild-web.yaml" \
+      --included-files="web/**" \
+      --included-files="infra/cloudbuild-web.yaml" \
+      --service-account="$TRIGGER_SA" \
+      --description="Build and deploy Next.js portal to Cloud Run when web/** changes"
+    ok "Created trigger: web-deploy"
+  fi
 fi
 
 # ---------------------------------------------------------------------------
@@ -363,6 +383,10 @@ echo "     → Cloud Build 'tf-apply' trigger fires → provisions Cloud SQL, Re
 echo ""
 echo "  2. Push any app code change to main"
 echo "     → Cloud Build 'deploy' trigger fires → build + migrate + deploy + ingest"
+echo ""
+echo "  2b. Push a change under web/"
+echo "      → Cloud Build 'web-deploy' builds Next.js and deploys to Cloud Run service 'web'"
+echo "      (Ensure the API is deployed first so the build can resolve its public URL.)"
 echo ""
 echo "  3. Monitor at:"
 echo "     https://console.cloud.google.com/cloud-build/builds?project=${PROJECT_ID}"

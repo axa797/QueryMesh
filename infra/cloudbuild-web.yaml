@@ -1,0 +1,92 @@
+# Build and deploy the Next.js portal (web/) to Cloud Run.
+#
+# NEXT_PUBLIC_QUERYMESH_URL is baked into the client bundle at build time from the
+# live Cloud Run URL of the api service (resolved in the first step).
+#
+# Manual:
+#   gcloud builds submit --config infra/cloudbuild-web.yaml
+#
+# Trigger: push to main under web/** (see scripts/bootstrap_gcp.sh).
+
+substitutions:
+  _REGION: us-central1
+  _AR_REPO: querymesh
+  _API_SERVICE: api
+  _WEB_SERVICE: web
+  _WEB_IMAGE: web
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+steps:
+  - id: resolve-api-url
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        API_URL=$$(gcloud run services describe ${_API_SERVICE} \
+          --region ${_REGION} \
+          --project "${PROJECT_ID}" \
+          --format='value(status.url)')
+        if [[ -z "$$API_URL" ]]; then
+          echo "ERROR: Cloud Run service '${_API_SERVICE}' has no URL — deploy the API first."
+          exit 1
+        fi
+        printf '%s' "$$API_URL" > /workspace/.web_build_api_url
+        echo "API URL for Next.js build: $$API_URL"
+
+  - id: build
+    name: gcr.io/cloud-builders/docker
+    entrypoint: bash
+    waitFor: [resolve-api-url]
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        API_URL=$$(cat /workspace/.web_build_api_url)
+        IMG_BASE="${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_WEB_IMAGE}"
+        docker build -f web/Dockerfile \
+          --build-arg "NEXT_PUBLIC_QUERYMESH_URL=$$API_URL" \
+          -t "$$IMG_BASE:${BUILD_ID}" \
+          -t "$$IMG_BASE:latest" \
+          .
+
+  - id: push
+    name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - --all-tags
+      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_WEB_IMAGE}
+    waitFor: [build]
+
+  - id: deploy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    waitFor: [push]
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        IMG="${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_WEB_IMAGE}:${BUILD_ID}"
+        gcloud run deploy ${_WEB_SERVICE} \
+          --image "$$IMG" \
+          --region ${_REGION} \
+          --project "${PROJECT_ID}" \
+          --platform managed \
+          --port 3000 \
+          --cpu 1 \
+          --memory 512Mi \
+          --min-instances 0 \
+          --max-instances 5 \
+          --allow-unauthenticated
+        WEB_URL=$$(gcloud run services describe ${_WEB_SERVICE} \
+          --region ${_REGION} \
+          --project "${PROJECT_ID}" \
+          --format='value(status.url)')
+        echo ""
+        echo "=== Web UI deployed ==="
+        echo "  $$WEB_URL"
+        echo "Set on the API Cloud Run service (comma-separate multiple origins):"
+        echo "  CORS_ALLOW_ORIGINS=$$WEB_URL"

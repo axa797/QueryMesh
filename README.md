@@ -208,23 +208,22 @@ See `docs/corpus_runbook.md` for the full runbook.
 
 A Next.js frontend in `web/` provides signup/login, API key management, and a chat interface against `POST /query`. Requires `PORTAL_JWT_SECRET` in the API environment.
 
-`NEXT_PUBLIC_QUERYMESH_URL` — the API base URL — is **baked into the JS bundle at build time** (Next.js `NEXT_PUBLIC_*` convention). It must be the URL the browser can reach directly.
+`NEXT_PUBLIC_QUERYMESH_URL` — the API base URL — is **baked into the JS bundle at build time** (Next.js `NEXT_PUBLIC_*` convention). It must be the URL the browser can reach directly (your public Cloud Run `api` URL).
 
-**Option A — Vercel (recommended):**
+**Option A — Cloud Run (GCP credits, no Vercel):**
 
-1. Import the repo on [vercel.com](https://vercel.com)
-2. Set environment variable: `NEXT_PUBLIC_QUERYMESH_URL=https://<your-cloud-run-api-url>`
-3. Vercel deploys automatically on every push to `main`
+1. Deploy the **API** first so it has a public URL.
+2. **First run:** `gcloud builds submit --config infra/cloudbuild-web.yaml` (from repo root, project set to your GCP project). This resolves the live `api` URL, builds [`web/Dockerfile`](web/Dockerfile), pushes to Artifact Registry, and deploys service **`web`**.
+3. **Ongoing:** push changes under `web/` on `main` — the **`web-deploy`** trigger runs the same config (created by [`scripts/bootstrap_gcp.sh`](scripts/bootstrap_gcp.sh) for new setups). Existing projects can add that trigger manually to match.
+4. **CORS:** On the **`api`** Cloud Run service, set `CORS_ALLOW_ORIGINS` to your web origin (the build logs print the `web` URL). Comma-separate multiple origins if needed. Without this, the browser cannot call the API.
 
-**Option B — Cloud Run:**
+If your **`deploy`** trigger was created before `web/**` was added to ignored files, update it so **ignored files** includes `web/**` (in addition to `infra/terraform/**`). That avoids running the full API pipeline on web-only commits.
 
-Add a web build and deploy step to `infra/cloudbuild.yaml` (see `infra/README.md`), passing the API URL as a build arg:
+**Option B — Vercel:**
 
-```bash
-docker build -f web/Dockerfile \
-  --build-arg NEXT_PUBLIC_QUERYMESH_URL=https://<your-api-url> \
-  -t <registry>/web:latest .
-```
+1. Import the repo on [vercel.com](https://vercel.com), **root directory `web`**
+2. Set `NEXT_PUBLIC_QUERYMESH_URL=https://<your-cloud-run-api-url>`
+3. Same **CORS** rule on the API for your `*.vercel.app` origin
 
 **Local development:**
 
