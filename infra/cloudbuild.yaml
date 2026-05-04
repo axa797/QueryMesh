@@ -259,7 +259,9 @@ steps:
           --format='value(status.url)')
         echo "Triggering corpus ingest at $$API_URL/ingest ..."
 
-        STATUS=$(curl -sf -o /dev/null -w "%{http_code}" \
+        # No curl -f: non-2xx must still capture %{http_code} only; with -f, bash runs
+        # `|| echo 000` and stdout becomes "401000".
+        STATUS=$(curl -sS -o /dev/null -w "%{http_code}" \
           -X POST "$$API_URL/ingest" \
           -H "Authorization: Bearer $$INGEST_TOKEN" \
           -H "Content-Type: application/json" \
