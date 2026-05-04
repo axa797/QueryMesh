@@ -28,9 +28,11 @@ resource "google_sql_database_instance" "postgres" {
     }
 
     ip_configuration {
-      ipv4_enabled    = false
+      # Public IP lets Cloud SQL Auth Proxy reach the instance from Cloud Build workers
+      # (private-IP-only SQL is unreachable outside the VPC). Cloud Run still uses the
+      # Cloud SQL Unix socket / private path when attached via --add-cloudsql-instances.
+      ipv4_enabled    = true
       private_network = data.google_compute_network.default.id
-      # Cloud Run connects via the SQL Auth Proxy path; traffic stays on Google backbone.
     }
 
     database_flags {

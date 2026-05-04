@@ -161,7 +161,6 @@ steps:
           --port 8080 \
           --allow-unauthenticated \
           --set-env-vars=INGESTION_GCP_DOCS_DIR=/app/corpus/gcp_docs \
-          --set-secrets=API_KEY_PEPPER=API_KEY_PEPPER:latest,E2B_API_KEY=E2B_API_KEY:latest \
           ${_EXTRA_DEPLOY_ARGS}
     waitFor: [migrate]
 

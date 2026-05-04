@@ -39,7 +39,7 @@ output "deploy_command" {
   value = <<-EOT
     gcloud builds submit --config infra/cloudbuild.yaml \
       --substitutions=_EXTRA_DEPLOY_ARGS="
-        --set-secrets=DATABASE_URL=DATABASE_URL:latest,REDIS_URL=REDIS_URL:latest,QDRANT_URL=QDRANT_URL:latest,QDRANT_API_KEY=QDRANT_API_KEY:latest,LANGFUSE_PUBLIC_KEY=LANGFUSE_PUBLIC_KEY:latest,LANGFUSE_SECRET_KEY=LANGFUSE_SECRET_KEY:latest
+        --set-secrets=API_KEY_PEPPER=API_KEY_PEPPER:latest,E2B_API_KEY=E2B_API_KEY:latest,DATABASE_URL=DATABASE_URL:latest,REDIS_URL=REDIS_URL:latest,QDRANT_URL=QDRANT_URL:latest,QDRANT_API_KEY=QDRANT_API_KEY:latest,LANGFUSE_PUBLIC_KEY=LANGFUSE_PUBLIC_KEY:latest,LANGFUSE_SECRET_KEY=LANGFUSE_SECRET_KEY:latest,PORTAL_JWT_SECRET=PORTAL_JWT_SECRET:latest
         --add-cloudsql-instances=${google_sql_database_instance.postgres.connection_name}
         --vpc-connector=${google_vpc_access_connector.connector.name}
         --vpc-egress=private-ranges-only
