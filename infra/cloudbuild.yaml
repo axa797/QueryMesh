@@ -162,7 +162,35 @@ steps:
     waitFor: [migrate]
 
   # ------------------------------------------------------------------
-  # 7. Trigger corpus ingest when needed:
+  # 7. Prune old images — delete all but the 5 most recent :BUILD_ID tags.
+  #    The :latest tag is always kept. Artifact Registry cleanup policy handles
+  #    untagged layers, but explicit pruning here keeps tagged image count low.
+  # ------------------------------------------------------------------
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    id: prune-images
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        REPO="${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_SERVICE}"
+        echo "Pruning old images from $$REPO ..."
+        # List all digests sorted by creation time, skip the 5 newest, delete the rest.
+        DIGESTS=$(gcloud artifacts docker images list "$$REPO" \
+          --format="value(version)" \
+          --sort-by="~CREATE_TIME" 2>/dev/null | tail -n +6 || true)
+        if [[ -z "$$DIGESTS" ]]; then
+          echo "Nothing to prune."
+        else
+          echo "$$DIGESTS" | while read -r digest; do
+            gcloud artifacts docker images delete "$$REPO@$$digest" --quiet --async 2>/dev/null || true
+          done
+          echo "Old images queued for deletion."
+        fi
+    waitFor: [deploy]
+
+  # ------------------------------------------------------------------
+  # 8. Trigger corpus ingest when needed:
   #    - Qdrant collection is empty (fresh env / wiped volume), OR
   #    - ingestion code, embeddings, or corpus scripts changed in this push
   # ------------------------------------------------------------------

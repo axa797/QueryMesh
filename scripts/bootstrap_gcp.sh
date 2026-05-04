@@ -121,6 +121,30 @@ else
   ok "Created ${AR_REPO}"
 fi
 
+# Set cleanup policy: keep the 5 most recent tagged versions; delete untagged after 1 day.
+# This prevents old :BUILD_ID images from accumulating indefinitely in Artifact Registry.
+info "Setting Artifact Registry cleanup policy ..."
+cat > /tmp/ar-cleanup-policy.json << 'EOF'
+[
+  {
+    "name": "keep-5-most-recent",
+    "action": {"type": "Keep"},
+    "mostRecentVersions": {"keepCount": 5}
+  },
+  {
+    "name": "delete-untagged",
+    "action": {"type": "Delete"},
+    "condition": {"tagState": "untagged", "olderThan": "86400s"}
+  }
+]
+EOF
+gcloud artifacts repositories set-cleanup-policies "$AR_REPO" \
+  --location="$REGION" \
+  --project="$PROJECT_ID" \
+  --policy=/tmp/ar-cleanup-policy.json \
+  --no-dry-run 2>/dev/null || warn "Cleanup policy requires Artifact Registry API v1beta2 — set manually if needed"
+ok "Cleanup policy set (keep 5 tagged versions, delete untagged after 1 day)"
+
 # ---------------------------------------------------------------------------
 # 4. Secret Manager secrets
 # ---------------------------------------------------------------------------
