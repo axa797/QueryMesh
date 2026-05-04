@@ -119,6 +119,9 @@ steps:
       - -c
       - |
         set -euo pipefail
+        # Cloud Build sets HOME=/builder/home; the image USER is appuser — not writable.
+        export UV_CACHE_DIR=/tmp/uv-cache
+        mkdir -p "$${UV_CACHE_DIR}"
         PROXY_BIN="/tmp/cloud-sql-proxy"
         PROXY_VER="2.11.4"
         INSTANCE_CONN="${PROJECT_ID}:${_REGION}:${_SQL_INSTANCE}"
