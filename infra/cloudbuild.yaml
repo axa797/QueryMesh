@@ -212,10 +212,13 @@ steps:
         SHOULD_INGEST=false
 
         # 1. Check Qdrant collection vector count.
-        # Qdrant runs on Cloud Run with IAM (run.invoker); curl must send a Google ID
-        # token as well as the Qdrant api-key header. Audience = collection URL base.
-        QDRANT_AUD="$$QDRANT_URL"
-        ID_TOKEN=$$(gcloud auth print-identity-token --audiences="$$QDRANT_AUD" --quiet)
+        # Qdrant is on Cloud Run with IAM (run.invoker for the build SA). ID tokens
+        # for the SA must come from the metadata server here — gcloud print-identity-token
+        # often fails on Cloud Build ("No identity token can be obtained").
+        QDRANT_AUD=$$(echo -n "$$QDRANT_URL" | tr -d '\r\n')
+        ID_TOKEN=$$(curl -sf -H "Metadata-Flavor: Google" \
+          "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience=$${QDRANT_AUD}" \
+          | tr -d '\r\n')
         QDRANT_COUNT=$(curl -sf \
           -H "Authorization: Bearer $$ID_TOKEN" \
           -H "api-key: $$QDRANT_API_KEY" \
