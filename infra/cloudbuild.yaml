@@ -108,18 +108,8 @@ steps:
     waitFor: [scan-image]
 
   # ------------------------------------------------------------------
-  # 4. Cloud SQL Auth Proxy — background sidecar for migration
-  # ------------------------------------------------------------------
-  - name: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2
-    id: sql-proxy
-    args:
-      - --port=5432
-      - ${PROJECT_ID}:${_REGION}:${_SQL_INSTANCE}
-    background: true
-    waitFor: ["-"]  # start immediately, parallel with build
-
-  # ------------------------------------------------------------------
-  # 5. Alembic migration — idempotent, safe on every deploy
+  # 4. Alembic migration — Cloud SQL Auth Proxy runs in-process. (Regional Cloud
+  #    Build rejects `background: true` on BuildStep, so no sidecar step.)
   # ------------------------------------------------------------------
   - name: ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_SERVICE}:${BUILD_ID}
     id: migrate
@@ -129,13 +119,25 @@ steps:
       - -c
       - |
         set -euo pipefail
-        # Give the proxy a moment to be ready
+        PROXY_BIN="/tmp/cloud-sql-proxy"
+        PROXY_VER="2.11.4"
+        INSTANCE_CONN="${PROJECT_ID}:${_REGION}:${_SQL_INSTANCE}"
+        PROXY_PORT="5433"
+        echo "Downloading Cloud SQL Auth Proxy $${PROXY_VER} ..."
+        PROXY_URL="https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v$${PROXY_VER}/cloud-sql-proxy.linux.amd64"
+        python3 -c "import urllib.request,sys; urllib.request.urlretrieve(sys.argv[1], sys.argv[2])" \
+          "$${PROXY_URL}" "$${PROXY_BIN}"
+        chmod +x "$${PROXY_BIN}"
+        echo "Starting proxy for $${INSTANCE_CONN} on port $${PROXY_PORT} ..."
+        "$${PROXY_BIN}" --port "$${PROXY_PORT}" "$${INSTANCE_CONN}" &
+        PROXY_PID=$$!
         sleep 4
         echo "Running Alembic migrations..."
-        DATABASE_URL="postgresql+asyncpg://querymesh:$$DB_PASSWORD@127.0.0.1:5432/querymesh" \
+        DATABASE_URL="postgresql+asyncpg://querymesh:$$DB_PASSWORD@127.0.0.1:$${PROXY_PORT}/querymesh" \
           uv run alembic upgrade head
         echo "Migrations complete."
-    waitFor: [sql-proxy, push]
+        kill "$${PROXY_PID}" 2>/dev/null || true
+    waitFor: [push]
 
   # ------------------------------------------------------------------
   # 6. Deploy to Cloud Run
