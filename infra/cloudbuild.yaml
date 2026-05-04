@@ -211,16 +211,20 @@ steps:
         set -euo pipefail
         SHOULD_INGEST=false
 
-        # 1. Check Qdrant collection vector count.
-        # Qdrant is on Cloud Run with IAM (run.invoker for the compute default SA).
-        # Use metadata server for ID token (gcloud print-identity-token fails on workers).
-        # Audience must be URL-encoded for the metadata query parameter.
-        ID_TOKEN=$$(python3 -c "import os,urllib.request,urllib.parse as p; u=os.environ['QDRANT_URL'].strip().rstrip('/'); q=p.urlencode({'audience': u}); req=urllib.request.Request('http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?'+q, headers={'Metadata-Flavor': 'Google'}); print(urllib.request.urlopen(req, timeout=60).read().decode().strip())")
-        QDRANT_COUNT=$(curl -sf \
-          -H "Authorization: Bearer $$ID_TOKEN" \
+        # 1. Check Qdrant collection vector count (api-key only; Cloud Run allows
+        # unauthenticated invoke — see infra/terraform/qdrant.tf IAM).
+        QDR_RESP=$$(curl -sS -w "\n%{http_code}" \
           -H "api-key: $$QDRANT_API_KEY" \
-          "$$QDRANT_URL/collections/${_QDRANT_COLLECTION}" 2>/dev/null \
-          | jq -r '.result.vectors_count // 0' 2>/dev/null || echo "0")
+          "$$QDRANT_URL/collections/${_QDRANT_COLLECTION}" 2>/dev/null || printf '\n000')
+        QDR_CODE=$$(echo "$$QDR_RESP" | tail -n1)
+        QDR_BODY=$$(echo "$$QDR_RESP" | sed '$$d')
+        if [[ "$$QDR_CODE" == "200" ]]; then
+          QDRANT_COUNT=$$(echo "$$QDR_BODY" | jq -r '.result.vectors_count // 0' 2>/dev/null || echo "0")
+        else
+          echo "Qdrant collection probe HTTP $$QDR_CODE — treating as ingest required"
+          QDRANT_COUNT=0
+          SHOULD_INGEST=true
+        fi
         echo "Qdrant '${_QDRANT_COLLECTION}' vector count: $$QDRANT_COUNT"
         if [[ "$$QDRANT_COUNT" -eq "0" ]]; then
           echo "  → collection empty, ingest required"

@@ -53,9 +53,18 @@ resource "google_cloud_run_v2_service" "qdrant" {
   depends_on = [google_project_service.apis]
 }
 
-# Restrict public access — only authenticated callers (the API service SA) can invoke.
-# The querymesh API uses QDRANT_API_KEY header auth rather than IAM invoke, so
-# we allow all users but require the API key in-band. Adjust if you want IAM-only.
+# Qdrant is protected by QDRANT__SERVICE__API_KEY (header api-key). Cloud Run
+# must allow unauthenticated invoke so callers can reach the container; unscoped
+# IAM (compute SA only) blocks Cloud Build and curl without a Google ID token.
+resource "google_cloud_run_v2_service_iam_member" "qdrant_invoker_all" {
+  project  = var.project_id
+  location = var.region
+  name     = google_cloud_run_v2_service.qdrant.name
+  role     = "roles/run.invoker"
+  member   = "allUsers"
+}
+
+# Redundant but documents that the API runtime SA may invoke via IAM if desired.
 resource "google_cloud_run_v2_service_iam_member" "qdrant_invoker" {
   project  = var.project_id
   location = var.region
