@@ -213,7 +213,7 @@ steps:
         # --- Compose _EXTRA_DEPLOY_ARGS for the deploy trigger ---
         # Spaces are intentional: Cloud Run's gcloud run deploy reads this as a
         # single flag blob via shell expansion in infra/cloudbuild.yaml.
-        EXTRA_ARGS="--set-secrets=API_KEY_PEPPER=API_KEY_PEPPER:latest,E2B_API_KEY=E2B_API_KEY:latest,DATABASE_URL=DATABASE_URL:latest,REDIS_URL=REDIS_URL:latest,QDRANT_URL=QDRANT_URL:latest,QDRANT_API_KEY=QDRANT_API_KEY:latest,LANGFUSE_PUBLIC_KEY=LANGFUSE_PUBLIC_KEY:latest,LANGFUSE_SECRET_KEY=LANGFUSE_SECRET_KEY:latest,PORTAL_JWT_SECRET=PORTAL_JWT_SECRET:latest --add-cloudsql-instances=$${SQL_CONN} --vpc-connector=$${VPC_CONN_NAME} --vpc-egress=private-ranges-only --set-env-vars=^@^GOOGLE_CLOUD_PROJECT=${PROJECT_ID}@GOOGLE_CLOUD_LOCATION=${_REGION}@QDRANT_COLLECTION=gcp_docs@RAG_VERTEX_RERANK=true"
+        EXTRA_ARGS="--set-secrets=API_KEY_PEPPER=API_KEY_PEPPER:latest,E2B_API_KEY=E2B_API_KEY:latest,DATABASE_URL=DATABASE_URL:latest,REDIS_URL=REDIS_URL:latest,QDRANT_URL=QDRANT_URL:latest,QDRANT_API_KEY=QDRANT_API_KEY:latest,LANGFUSE_PUBLIC_KEY=LANGFUSE_PUBLIC_KEY:latest,LANGFUSE_SECRET_KEY=LANGFUSE_SECRET_KEY:latest,PORTAL_JWT_SECRET=PORTAL_JWT_SECRET:latest --add-cloudsql-instances=$${SQL_CONN} --vpc-connector=$${VPC_CONN_NAME} --vpc-egress=private-ranges-only --set-env-vars=^@^GOOGLE_CLOUD_PROJECT=${PROJECT_ID}@GOOGLE_CLOUD_LOCATION=${_REGION}@QDRANT_COLLECTION=gcp_docs@RAG_VERTEX_RERANK=true@CORS_ALLOW_ORIGINS=https://query-mesh.vercel.app"
 
         echo
         echo "=== Reconciling deploy trigger substitution ==="
