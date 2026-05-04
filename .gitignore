@@ -20,10 +20,23 @@ dist/
 build/
 *.egg-info/
 
-# Editor
+# Editor / OS
 .idea/
 .vscode/
 .DS_Store
+*.swp
+*.swo
+
+# Python cache (belt-and-suspenders; uv/pytest generate these locally)
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Next.js build output and dependencies
+web/.next/
+web/node_modules/
 
 # Terraform — state and variable files contain secrets
 infra/terraform/terraform.tfvars
