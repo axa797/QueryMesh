@@ -71,6 +71,10 @@ fi
 # ---------------------------------------------------------------------------
 step "Enabling GCP APIs"
 APIS=(
+  # Required by terraform's data "google_project" lookup at plan time —
+  # MUST be enabled here, not in apis.tf (apis.tf can't help with a chicken-and-egg
+  # where plan needs the API to even compute the plan).
+  cloudresourcemanager.googleapis.com
   cloudbuild.googleapis.com
   run.googleapis.com
   sqladmin.googleapis.com
@@ -80,6 +84,10 @@ APIS=(
   discoveryengine.googleapis.com
   vpcaccess.googleapis.com
   iam.googleapis.com
+  # Compute API is required for VPC Serverless Access connector (network.tf).
+  compute.googleapis.com
+  # Used downstream by ingestion + evals.
+  aiplatform.googleapis.com
 )
 for api in "${APIS[@]}"; do
   if gcloud services list --project="$PROJECT_ID" --filter="name:$api" --format='value(name)' | grep -q .; then
@@ -213,33 +221,37 @@ grant_role() {
   fi
 }
 
-info "Cloud Build SA: ${CB_SA}"
-grant_role "serviceAccount:${CB_SA}" "roles/run.admin"
-grant_role "serviceAccount:${CB_SA}" "roles/artifactregistry.writer"
-grant_role "serviceAccount:${CB_SA}" "roles/iam.serviceAccountUser"
-grant_role "serviceAccount:${CB_SA}" "roles/cloudsql.client"
-grant_role "serviceAccount:${CB_SA}" "roles/secretmanager.secretAccessor"
-# logging.logWriter is required when build YAML sets options.logging=CLOUD_LOGGING_ONLY
-# (it bypasses the legacy default GCS log bucket grant).
-grant_role "serviceAccount:${CB_SA}" "roles/logging.logWriter"
+# BUILD_SA: the service account that Cloud Build triggers run as.
+# Cloud Build no longer accepts the legacy *@cloudbuild.gserviceaccount.com SA
+# at trigger run time — it requires a "user-managed" SA. We reuse the Compute
+# Engine default SA, which is also the Cloud Run runtime SA. This keeps the
+# permission model simple (one SA, one set of grants) and avoids creating an
+# extra dedicated SA for a one-person setup.
+BUILD_SA="${CR_SA}"
 
-info "Cloud Run SA: ${CR_SA}"
-grant_role "serviceAccount:${CR_SA}" "roles/secretmanager.secretAccessor"
-grant_role "serviceAccount:${CR_SA}" "roles/cloudsql.client"
-grant_role "serviceAccount:${CR_SA}" "roles/discoveryengine.viewer"
+info "Build / Run SA: ${BUILD_SA}"
+grant_role "serviceAccount:${BUILD_SA}" "roles/run.admin"
+grant_role "serviceAccount:${BUILD_SA}" "roles/artifactregistry.writer"
+grant_role "serviceAccount:${BUILD_SA}" "roles/iam.serviceAccountUser"
+grant_role "serviceAccount:${BUILD_SA}" "roles/cloudsql.client"
+grant_role "serviceAccount:${BUILD_SA}" "roles/secretmanager.secretAccessor"
+grant_role "serviceAccount:${BUILD_SA}" "roles/discoveryengine.viewer"
+# Required when build YAML sets options.logging=CLOUD_LOGGING_ONLY.
+grant_role "serviceAccount:${BUILD_SA}" "roles/logging.logWriter"
 
-# Grant Cloud Build SA access to each secret explicitly
+# Grant the build/run SA per-secret accessor bindings (defense-in-depth on top
+# of project-level secretmanager.secretAccessor above).
 for secret in API_KEY_PEPPER DB_PASSWORD QDRANT_API_KEY QDRANT_URL E2B_API_KEY \
               LANGFUSE_PUBLIC_KEY LANGFUSE_SECRET_KEY PORTAL_JWT_SECRET INGEST_TOKEN; do
   if gcloud secrets describe "$secret" --project="$PROJECT_ID" &>/dev/null; then
     gcloud secrets add-iam-policy-binding "$secret" \
       --project="$PROJECT_ID" \
-      --member="serviceAccount:${CB_SA}" \
+      --member="serviceAccount:${BUILD_SA}" \
       --role="roles/secretmanager.secretAccessor" \
       --quiet 2>/dev/null || true
   fi
 done
-ok "Per-secret IAM bindings set for Cloud Build SA"
+ok "Per-secret IAM bindings set for ${BUILD_SA}"
 
 # ---------------------------------------------------------------------------
 # 6. Cloud Build GitHub triggers
@@ -263,8 +275,11 @@ read -rp "Paste your GitHub owner/repo (e.g. myorg/querymesh) once the App is in
 
 # --service-account is mandatory for regional triggers as of Oct 2024.
 # Must be in the format projects/PROJECT_ID/serviceAccounts/EMAIL — without it, the
-# API rejects with the unhelpful "Request contains an invalid argument."
-TRIGGER_SA="projects/${PROJECT_ID}/serviceAccounts/${CB_SA}"
+# create API rejects with the unhelpful "Request contains an invalid argument."
+# It must also be a user-managed SA — the legacy ${CB_SA} is rejected at trigger
+# run time with "provide a user-managed service account". We use ${BUILD_SA}
+# (Compute Engine default SA), which is granted the build-time roles above.
+TRIGGER_SA="projects/${PROJECT_ID}/serviceAccounts/${BUILD_SA}"
 
 if [[ -z "$CB_GITHUB_REPO" ]]; then
   warn "No GitHub repo provided — skipping trigger creation."

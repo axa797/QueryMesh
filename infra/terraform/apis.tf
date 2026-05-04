@@ -3,6 +3,11 @@
 
 locals {
   required_apis = toset([
+    # cloudresourcemanager + compute must already be enabled before terraform can
+    # plan (data "google_project" + VPC connector). Bootstrap script enables them
+    # explicitly; listing them here keeps the spec self-documenting.
+    "cloudresourcemanager.googleapis.com",
+    "compute.googleapis.com",
     "cloudbuild.googleapis.com",
     "run.googleapis.com",
     "sqladmin.googleapis.com",
