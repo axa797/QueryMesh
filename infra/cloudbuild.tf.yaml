@@ -226,14 +226,17 @@ steps:
         if [ "$${CURRENT_ARGS}" = "$${EXTRA_ARGS}" ]; then
           echo "  [=] deploy trigger _EXTRA_DEPLOY_ARGS unchanged"
         else
-          # gcloud --update-substitutions splits on commas; escape commas in the value.
-          EXTRA_ARGS_FOR_GCLOUD=$$(E="$${EXTRA_ARGS}" python3 -c 'import os; print(os.environ["E"].replace(",", chr(92)+","))')
+          # gcloud --update-substitutions splits on commas; use REST PATCH so the value
+          # can contain commas (see apitools OrderedDict parsing with \, escapes).
           PROJECT_NUMBER=$$(gcloud projects describe "${PROJECT_ID}" --format='value(projectNumber)')
           TRIGGER_SA="projects/${PROJECT_ID}/serviceAccounts/$${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
-          gcloud builds triggers update github "${_DEPLOY_TRIGGER}" \
-            --project="${PROJECT_ID}" --region="${_REGION}" \
-            --service-account="$${TRIGGER_SA}" \
-            --update-substitutions="_EXTRA_DEPLOY_ARGS=$${EXTRA_ARGS_FOR_GCLOUD}" >/dev/null
+          ACCESS_TOKEN=$$(gcloud auth print-access-token)
+          PATCH_JSON=$$(E="$${EXTRA_ARGS}" S="$${TRIGGER_SA}" python3 -c 'import json,os; print(json.dumps({"substitutions":{"_EXTRA_DEPLOY_ARGS":os.environ["E"]},"serviceAccount":os.environ["S"]}))')
+          curl -sS -f -X PATCH \
+            "https://cloudbuild.googleapis.com/v1/projects/${PROJECT_ID}/locations/${_REGION}/triggers/${_DEPLOY_TRIGGER}?updateMask=substitutions%2CserviceAccount" \
+            -H "Authorization: Bearer $${ACCESS_TOKEN}" \
+            -H "Content-Type: application/json; charset=utf-8" \
+            -d "$${PATCH_JSON}" >/dev/null
           echo "  [+] deploy trigger _EXTRA_DEPLOY_ARGS updated"
         fi
 
