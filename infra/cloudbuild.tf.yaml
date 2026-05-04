@@ -67,7 +67,7 @@ steps:
           local id="$$1"
           local addr secret_path
           addr=$$(printf 'google_secret_manager_secret.derived["%s"]' "$$id")
-          secret_path=$$(printf 'projects/%s/secrets/%s' "$${PROJECT_ID}" "$$id")
+          secret_path=$$(printf 'projects/%s/secrets/%s' "${PROJECT_ID}" "$$id")
           if terraform state show -no-color "$$addr" >/dev/null 2>&1; then
             echo "[=] secret $$id already in state"
             return 0
@@ -229,7 +229,7 @@ steps:
           # gcloud --update-substitutions splits on commas; escape commas in the value.
           EXTRA_ARGS_FOR_GCLOUD=$$(E="$${EXTRA_ARGS}" python3 -c 'import os; print(os.environ["E"].replace(",", chr(92)+","))')
           PROJECT_NUMBER=$$(gcloud projects describe "${PROJECT_ID}" --format='value(projectNumber)')
-          TRIGGER_SA="projects/$${PROJECT_ID}/serviceAccounts/$${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+          TRIGGER_SA="projects/${PROJECT_ID}/serviceAccounts/$${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
           gcloud builds triggers update github "${_DEPLOY_TRIGGER}" \
             --project="${PROJECT_ID}" --region="${_REGION}" \
             --service-account="$${TRIGGER_SA}" \
