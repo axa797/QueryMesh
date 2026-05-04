@@ -219,6 +219,9 @@ grant_role "serviceAccount:${CB_SA}" "roles/artifactregistry.writer"
 grant_role "serviceAccount:${CB_SA}" "roles/iam.serviceAccountUser"
 grant_role "serviceAccount:${CB_SA}" "roles/cloudsql.client"
 grant_role "serviceAccount:${CB_SA}" "roles/secretmanager.secretAccessor"
+# logging.logWriter is required when build YAML sets options.logging=CLOUD_LOGGING_ONLY
+# (it bypasses the legacy default GCS log bucket grant).
+grant_role "serviceAccount:${CB_SA}" "roles/logging.logWriter"
 
 info "Cloud Run SA: ${CR_SA}"
 grant_role "serviceAccount:${CR_SA}" "roles/secretmanager.secretAccessor"
@@ -245,17 +248,23 @@ step "Cloud Build GitHub triggers"
 
 echo ""
 echo -e "${YELLOW}GitHub connection requires one browser step.${NC}"
-echo "Open this URL and connect your GitHub repo to Cloud Build:"
+echo "Open this URL and install the Cloud Build GitHub App on your repo:"
 echo ""
 echo -e "  ${BOLD}https://console.cloud.google.com/cloud-build/triggers/connect?project=${PROJECT_ID}${NC}"
 echo ""
 echo "Steps in the UI:"
 echo "  1. Select 'GitHub (Cloud Build GitHub App)'"
-echo "  2. Authorize and install the Cloud Build GitHub App on your repo"
-echo "  3. Select the querymesh repository"
-echo "  4. Click 'Connect' then 'Done'"
+echo "  2. Authenticate to GitHub and install the Cloud Build GitHub App on the repo"
+echo "  3. (You may stop after install — this script will create the project-side record"
+echo "      via the trigger create call below. The wizard's 'Select repository' step is"
+echo "      not required and may show 'already connected' even on a fresh project.)"
 echo ""
-read -rp "Paste your GitHub owner/repo (e.g. myorg/querymesh) once connected: " CB_GITHUB_REPO
+read -rp "Paste your GitHub owner/repo (e.g. myorg/querymesh) once the App is installed: " CB_GITHUB_REPO
+
+# --service-account is mandatory for regional triggers as of Oct 2024.
+# Must be in the format projects/PROJECT_ID/serviceAccounts/EMAIL — without it, the
+# API rejects with the unhelpful "Request contains an invalid argument."
+TRIGGER_SA="projects/${PROJECT_ID}/serviceAccounts/${CB_SA}"
 
 if [[ -z "$CB_GITHUB_REPO" ]]; then
   warn "No GitHub repo provided — skipping trigger creation."
@@ -279,6 +288,7 @@ else
       --build-config="infra/cloudbuild.yaml" \
       --included-files="**" \
       --ignored-files="infra/terraform/**" \
+      --service-account="$TRIGGER_SA" \
       --description="Build, migrate, and deploy api service on push to main"
     ok "Created trigger: deploy"
   fi
@@ -297,6 +307,7 @@ else
       --branch-pattern="^main$" \
       --build-config="infra/cloudbuild.tf.yaml" \
       --included-files="infra/terraform/**" \
+      --service-account="$TRIGGER_SA" \
       --description="Run terraform apply when infra/terraform/** changes on main"
     ok "Created trigger: tf-apply"
   fi

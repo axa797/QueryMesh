@@ -22,12 +22,14 @@ substitutions:
 options:
   logging: CLOUD_LOGGING_ONLY
 
+# Build-time secrets only. API_KEY_PEPPER and E2B_API_KEY are injected at runtime
+# via Cloud Run --set-secrets in the deploy step, so they are not listed here.
+# Cloud Build rejects (with INVALID_ARGUMENT) any availableSecrets entry that is
+# not consumed by a step's secretEnv.
 availableSecrets:
   secretManager:
     - versionName: projects/$PROJECT_ID/secrets/DB_PASSWORD/versions/latest
       env: DB_PASSWORD
-    - versionName: projects/$PROJECT_ID/secrets/API_KEY_PEPPER/versions/latest
-      env: API_KEY_PEPPER
     - versionName: projects/$PROJECT_ID/secrets/INGEST_TOKEN/versions/latest
       env: INGEST_TOKEN
     - versionName: projects/$PROJECT_ID/secrets/QDRANT_URL/versions/latest
