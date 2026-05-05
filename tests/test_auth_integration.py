@@ -55,7 +55,7 @@ def test_query_accepts_minted_key() -> None:
             "source": "test",
         }
     )
-    with patch("graph.pipeline.retrieve_context", new=AsyncMock(return_value=[])):
+    with patch("graph.pipeline.retrieve_context", new=AsyncMock(return_value=([], {}))):
         with patch("graph.pipeline.run_orchestrator", new=orch_mock):
             with patch(
                 "graph.pipeline.run_rag_structured",

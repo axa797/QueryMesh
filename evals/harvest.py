@@ -60,7 +60,7 @@ _HARVESTED_PATH = Path(__file__).resolve().parent / "harvested_dataset.json"
 
 async def _harvest_row(row: GoldenRow) -> dict:
     """Return a dict ready for harvested_dataset.json for one golden row."""
-    hits = await retrieve_context(row.question)
+    hits, _meta = await retrieve_context(row.question)
     contexts = [h["text"] for h in hits if h.get("text")]
 
     model_answer: str

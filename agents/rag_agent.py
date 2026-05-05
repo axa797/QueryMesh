@@ -68,6 +68,7 @@ def _fallback_rag(query: str, hits: list[dict[str, Any]], *, source: str) -> dic
                 "document": str(h.get("source_doc") or ""),
                 "section": str(h.get("section") or ""),
                 "chunk_id": str(i),
+                "point_id": str(h.get("point_id") or ""),
             },
         )
     if not hits:

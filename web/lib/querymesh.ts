@@ -21,16 +21,32 @@ export type ApiKeyCreateResponse = {
   key_id: string;
 };
 
+export type SourceCard = {
+  point_id: string;
+  source_doc: string;
+  section: string;
+  product: string;
+  page_number?: unknown;
+  score?: unknown;
+  excerpt: string;
+};
+
 export type QueryMeshSuccess = {
   response: {
     status?: string;
     synthesis?: { message?: string };
+    source_cards?: SourceCard[];
     [key: string]: unknown;
   };
   session_id: string;
   trace_id: string;
   latency_ms: number;
 };
+
+export type StreamQueryEvent =
+  | { type: "phase"; node: string }
+  | { type: "done"; payload: QueryMeshSuccess }
+  | { type: "error"; message: string };
 
 export class ApiError extends Error {
   constructor(
@@ -76,6 +92,66 @@ export async function readJsonResponse<T>(res: Response): Promise<T> {
     throw new ApiError(errorDetail(body), res.status);
   }
   return body as T;
+}
+
+export async function postQueryStream(
+  body: { query: string; session_id?: string },
+  headers: Record<string, string>,
+  onEvent: (e: StreamQueryEvent) => void,
+): Promise<void> {
+  const res = await fetch(`${getApiBase()}/query/stream`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...headers,
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    throw new ApiError(await res.text(), res.status);
+  }
+  const reader = res.body?.getReader();
+  if (!reader) {
+    throw new ApiError("No response stream", res.status);
+  }
+  const dec = new TextDecoder();
+  let buf = "";
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let sep: number;
+    while ((sep = buf.indexOf("\n\n")) !== -1) {
+      const block = buf.slice(0, sep);
+      buf = buf.slice(sep + 2);
+      const line = block
+        .split("\n")
+        .map((l) => l.trim())
+        .find((l) => l.startsWith("data:"));
+      if (!line) continue;
+      const raw = line.slice(5).trim();
+      if (!raw) continue;
+      try {
+        const obj = JSON.parse(raw) as unknown;
+        const o = obj as Record<string, unknown>;
+        if (o?.type === "phase" && typeof o.node === "string") {
+          onEvent({ type: "phase", node: o.node });
+        } else if (o?.type === "done" && o.payload && typeof o.payload === "object") {
+          onEvent({
+            type: "done",
+            payload: o.payload as QueryMeshSuccess,
+          });
+        } else if (o?.type === "error") {
+          onEvent({
+            type: "error",
+            message: typeof o.message === "string" ? o.message : "stream_failed",
+          });
+        }
+      } catch {
+        /* malformed chunk */
+      }
+    }
+  }
 }
 
 export async function postJson<T>(

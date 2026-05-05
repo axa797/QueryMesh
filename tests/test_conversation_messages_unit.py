@@ -41,7 +41,7 @@ def test_second_turn_orchestrator_sees_prior_turns_in_history() -> None:
             "source": "test",
         }
         with (
-            patch("graph.pipeline.retrieve_context", new=AsyncMock(return_value=[])),
+            patch("graph.pipeline.retrieve_context", new=AsyncMock(return_value=([], {}))),
             patch("graph.pipeline.run_orchestrator", new=record_orch),
             patch("graph.pipeline.run_rag_structured", new=AsyncMock(return_value=rag_out)),
             patch("graph.pipeline.run_synthesizer", new=AsyncMock(return_value=syn1)),
@@ -65,7 +65,7 @@ def test_second_turn_orchestrator_sees_prior_turns_in_history() -> None:
             "source": "test",
         }
         with (
-            patch("graph.pipeline.retrieve_context", new=AsyncMock(return_value=[])),
+            patch("graph.pipeline.retrieve_context", new=AsyncMock(return_value=([], {}))),
             patch("graph.pipeline.run_orchestrator", new=record_orch),
             patch("graph.pipeline.run_rag_structured", new=AsyncMock(return_value=rag_out)),
             patch("graph.pipeline.run_synthesizer", new=AsyncMock(return_value=syn2)),

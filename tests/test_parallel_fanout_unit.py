@@ -41,7 +41,7 @@ def test_specialists_parallel_overlaps_execution() -> None:
         }
 
         with (
-            patch("graph.pipeline.retrieve_context", new=AsyncMock(return_value=[])),
+            patch("graph.pipeline.retrieve_context", new=AsyncMock(return_value=([], {}))),
             patch("graph.pipeline.run_orchestrator", new=AsyncMock(return_value=orch)),
             patch("graph.pipeline.run_analytics", new=mock_analytics),
             patch("graph.pipeline.run_code_generation", new=mock_code),
@@ -109,7 +109,7 @@ def test_specialists_sequential_runs_analytics_before_code() -> None:
         }
 
         with (
-            patch("graph.pipeline.retrieve_context", new=AsyncMock(return_value=[])),
+            patch("graph.pipeline.retrieve_context", new=AsyncMock(return_value=([], {}))),
             patch("graph.pipeline.run_orchestrator", new=AsyncMock(return_value=orch)),
             patch("graph.pipeline.run_analytics", new=mock_analytics),
             patch("graph.pipeline.run_code_generation", new=mock_code),

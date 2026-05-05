@@ -10,6 +10,7 @@ def test_log_query_request_emits_single_json_line(capsys) -> None:
         http_status=200,
         latency_ms=42,
         intent_bucket="retrieval",
+        extra={"retrieve_total_ms": 12, "empty": None},
     )
     out = capsys.readouterr().out.strip().splitlines()
     assert len(out) == 1
@@ -18,3 +19,5 @@ def test_log_query_request_emits_single_json_line(capsys) -> None:
     assert row["http_status"] == 200
     assert row["latency_ms"] == 42
     assert row["intent_bucket"] == "retrieval"
+    assert row["retrieve_total_ms"] == 12
+    assert "empty" not in row

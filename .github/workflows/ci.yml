@@ -39,3 +39,12 @@ jobs:
 
       - name: Pytest (fast suite)
         run: uv run pytest -q
+
+      # Golden dataset + RAGAS harness dry-run (no judge LLM; catches schema / import drift).
+      - name: Sync eval dependencies
+        run: uv sync --frozen --group eval
+
+      - name: Golden + RAGAS dry-run gate
+        run: |
+          uv run pytest tests/test_golden_loader_unit.py tests/test_golden_specialist_profiles_unit.py -q
+          uv run --group eval python -m evals.ragas_eval --dry-run

@@ -64,6 +64,9 @@ class Settings(BaseSettings):
     # Discovery Engine Rank API model (spec §6.2; requires Discovery Engine API enabled)
     vertex_ranking_model: str = "semantic-ranker-fast-004"
 
+    # Dense Qdrant prefetch + lexical overlap RRF reorder (no re-ingestion or sparse index).
+    rag_hybrid_lexical: bool = False
+
     # BigQuery analytics agent
     bigquery_project_id: str | None = None
     bigquery_dataset: str = "querymesh"

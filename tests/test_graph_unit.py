@@ -33,7 +33,7 @@ def test_full_linear_pipeline_mocked_llm_steps() -> None:
             "source": "test",
         }
         with (
-            patch("graph.pipeline.retrieve_context", new=AsyncMock(return_value=[])),
+            patch("graph.pipeline.retrieve_context", new=AsyncMock(return_value=([], {}))),
             patch(
                 "graph.pipeline.run_orchestrator",
                 new=AsyncMock(return_value=orch_out),

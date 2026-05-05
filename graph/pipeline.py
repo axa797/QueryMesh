@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from typing import Annotated, Any
 from uuid import UUID
 
@@ -25,6 +26,13 @@ _compiled_lock = asyncio.Lock()
 _compiled_graph: Any = None
 
 
+def merge_pipeline_metrics(
+    left: dict[str, Any] | None,
+    right: dict[str, Any] | None,
+) -> dict[str, Any]:
+    return {**(left or {}), **(right or {})}
+
+
 class QueryGraphState(TypedDict, total=False):
     """Graph state: checkpointed messages + per-turn fields + node outputs."""
 
@@ -39,6 +47,7 @@ class QueryGraphState(TypedDict, total=False):
     code_structured: dict[str, Any]
     rag_structured: dict[str, Any]
     synthesis: dict[str, Any]
+    pipeline_metrics: Annotated[dict[str, Any], merge_pipeline_metrics]
 
 
 def _history_from_state(state: QueryGraphState) -> str:
@@ -68,25 +77,27 @@ def echo_node(state: QueryGraphState) -> dict[str, str]:
 
 async def orchestrator_node(state: QueryGraphState) -> dict[str, dict[str, Any]]:
     history = _history_from_state(state)
+    t0 = time.monotonic()
     plan = await run_orchestrator(
         state.get("query") or "",
         state.get("memory_compact") or "",
         history,
     )
-    return {"orchestrator": plan}
+    orch_ms = max(0, int((time.monotonic() - t0) * 1000))
+    return {"orchestrator": plan, "pipeline_metrics": {"orchestrator_ms": orch_ms}}
 
 
-async def retrieve_node(state: QueryGraphState) -> dict[str, list[dict[str, Any]]]:
+async def retrieve_node(state: QueryGraphState) -> dict[str, Any]:
     if "retrieval" not in _intents(state):
-        return {"retrieval_hits": []}
+        return {"retrieval_hits": [], "pipeline_metrics": {"retrieval_skipped": True}}
     stub = state.get("orchestrator") or {}
     rq = stub.get("rewritten_queries") if isinstance(stub, dict) else None
     rewritten = ""
     if isinstance(rq, dict):
         rewritten = (rq.get("retrieval") or "").strip()
     q = rewritten or (state.get("query") or "").strip()
-    hits = await retrieve_context(q, top_k=5)
-    return {"retrieval_hits": hits}
+    hits, retr_meta = await retrieve_context(q, top_k=5)
+    return {"retrieval_hits": hits, "pipeline_metrics": dict(retr_meta)}
 
 
 def _skipped_analytics() -> dict[str, Any]:
@@ -147,20 +158,28 @@ async def specialists_node(state: QueryGraphState) -> dict[str, Any]:
     need_c = "code_generation" in intents_s
     use_parallel = _parallel_specialists(orch) and need_a and need_c
 
+    t0 = time.monotonic()
     if use_parallel:
         a_part, c_part = await asyncio.gather(
             _analytics_branch(state),
             _code_branch(state),
         )
-        return {**a_part, **c_part}
+        elapsed = max(0, int((time.monotonic() - t0) * 1000))
+        return {
+            **a_part,
+            **c_part,
+            "pipeline_metrics": {"specialists_ms": elapsed},
+        }
 
     merged: dict[str, Any] = {}
     merged.update(await _analytics_branch(state) if need_a else _skipped_analytics())
     merged.update(await _code_branch(state) if need_c else _skipped_code())
+    elapsed = max(0, int((time.monotonic() - t0) * 1000))
+    merged["pipeline_metrics"] = {"specialists_ms": elapsed}
     return merged
 
 
-async def rag_structured_node(state: QueryGraphState) -> dict[str, dict[str, Any]]:
+async def rag_structured_node(state: QueryGraphState) -> dict[str, Any]:
     if "retrieval" not in _intents(state):
         return {
             "rag_structured": {
@@ -169,12 +188,15 @@ async def rag_structured_node(state: QueryGraphState) -> dict[str, dict[str, Any
                 "confidence": "low",
                 "source": "skipped",
             },
+            "pipeline_metrics": {"rag_structured_skipped": True},
         }
+    t0 = time.monotonic()
     rag = await run_rag_structured(
         state.get("query") or "",
         state.get("retrieval_hits") or [],
     )
-    return {"rag_structured": rag}
+    rag_ms = max(0, int((time.monotonic() - t0) * 1000))
+    return {"rag_structured": rag, "pipeline_metrics": {"rag_structured_ms": rag_ms}}
 
 
 async def synthesizer_node(state: QueryGraphState) -> dict[str, Any]:
@@ -182,6 +204,7 @@ async def synthesizer_node(state: QueryGraphState) -> dict[str, Any]:
     if not uid_s:
         raise ValueError("query graph state requires user_id")
     hist = _history_from_state(state)
+    t0 = time.monotonic()
     syn = await run_synthesizer(
         state.get("query") or "",
         state.get("memory_compact") or "",
@@ -192,8 +215,12 @@ async def synthesizer_node(state: QueryGraphState) -> dict[str, Any]:
         UUID(uid_s),
         hist,
     )
+    synth_ms = max(0, int((time.monotonic() - t0) * 1000))
     msg_text = (syn.get("message") or "").strip()
-    out: dict[str, Any] = {"synthesis": syn}
+    out: dict[str, Any] = {
+        "synthesis": syn,
+        "pipeline_metrics": {"synthesizer_ms": synth_ms},
+    }
     if msg_text:
         out["messages"] = [AIMessage(content=msg_text)]
     return out

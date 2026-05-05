@@ -54,7 +54,7 @@ def client_with_session_deps(fixed_user_id: uuid.UUID, monkeypatch: pytest.Monke
 
     monkeypatch.setattr("api.routes.query.load_top_k_memories", fake_load_top_k)
     monkeypatch.setattr("api.routes.query.get_compiled_query_graph", fake_compiled_graph)
-    monkeypatch.setattr("graph.pipeline.retrieve_context", AsyncMock(return_value=[]))
+    monkeypatch.setattr("graph.pipeline.retrieve_context", AsyncMock(return_value=([], {})))
     monkeypatch.setattr("graph.pipeline.run_orchestrator", fake_route)
 
     async def fake_rag(_q: str, _hits: list) -> dict:
