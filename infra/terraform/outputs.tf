@@ -43,7 +43,8 @@ output "deploy_command" {
         --add-cloudsql-instances=${google_sql_database_instance.postgres.connection_name}
         --vpc-connector=${google_vpc_access_connector.connector.name}
         --vpc-egress=private-ranges-only
-        --set-env-vars=GOOGLE_CLOUD_PROJECT=${var.project_id},GOOGLE_CLOUD_LOCATION=${var.region},QDRANT_COLLECTION=gcp_docs,RAG_VERTEX_RERANK=true,BIGQUERY_PROJECT_ID=${var.project_id},BIGQUERY_DATASET=querymesh,CORS_ALLOW_ORIGINS=https://query-mesh.vercel.app,CORS_ALLOW_ORIGIN_REGEX=https://.*\\.vercel\\.app
+        --no-cpu-throttling
+        --set-env-vars=GOOGLE_CLOUD_PROJECT=${var.project_id},GOOGLE_CLOUD_LOCATION=${var.region},QDRANT_COLLECTION=gcp_docs,RAG_VERTEX_RERANK=true,BIGQUERY_PROJECT_ID=${var.project_id},BIGQUERY_DATASET=querymesh,CORS_ALLOW_ORIGINS=https://query-mesh.vercel.app,CORS_ALLOW_ORIGIN_REGEX=https://.*\\.vercel\\.app,LANGFUSE_HOST=https://us.cloud.langfuse.com
       "
   EOT
 }

@@ -44,6 +44,8 @@ class Settings(BaseSettings):
     qdrant_url: str = "http://localhost:6333"
     qdrant_api_key: str | None = None
     qdrant_collection: str = "gcp_docs"
+    # REST client default in qdrant-client is ~5s; Cloud Run cold paths often need more.
+    qdrant_timeout_seconds: int = 60
 
     # Ingestion API: document directory for `source=gcp_docs`
     ingestion_gcp_docs_dir: str = ""
@@ -73,7 +75,11 @@ class Settings(BaseSettings):
 
     langfuse_public_key: str | None = None
     langfuse_secret_key: str | None = None
-    langfuse_host: str | None = None
+    langfuse_host: str | None = Field(
+        default=None,
+        description="Langfuse API base URL. Langfuse Cloud US: https://us.cloud.langfuse.com. "
+        "EU default (when unset) is https://cloud.langfuse.com via SDK.",
+    )
     langfuse_tracing_environment: str | None = Field(
         default=None,
         description="Langfuse trace environment tag (e.g. production).",
@@ -113,6 +119,7 @@ class Settings(BaseSettings):
         "portal_jwt_secret",
         "ingest_token",
         "cors_allow_origin_regex",
+        "langfuse_host",
         mode="before",
     )
     @classmethod

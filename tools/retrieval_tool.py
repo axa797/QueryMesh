@@ -9,7 +9,6 @@ from typing import Any
 
 from api.settings import get_settings
 from ingestion.embeddings import embed_query_text
-from qdrant_client import AsyncQdrantClient
 
 log = logging.getLogger(__name__)
 
@@ -171,23 +170,42 @@ async def retrieve_context(query: str, top_k: int = _TOP_K) -> list[dict[str, An
         pool = max(top_k, int(settings.rag_rerank_candidate_limit))
         want = min(_RERANK_POOL_CAP, pool)
 
-    client = AsyncQdrantClient(url=settings.qdrant_url, api_key=settings.qdrant_api_key)
+    def _qdrant_query() -> list[dict[str, Any]]:
+        import httpx
+
+        base = (settings.qdrant_url or "").strip().rstrip("/")
+        headers: dict[str, str] = {"Content-Type": "application/json"}
+        if settings.qdrant_api_key:
+            headers["api-key"] = settings.qdrant_api_key.strip()
+        body = {
+            "vector": vector,
+            "limit": want,
+            "with_payload": True,
+        }
+        with httpx.Client(timeout=settings.qdrant_timeout_seconds) as client:
+            r = client.post(
+                f"{base}/collections/{settings.qdrant_collection}/points/search",
+                headers=headers,
+                json=body,
+            )
+            r.raise_for_status()
+            data = r.json()
+        raw = data.get("result")
+        return raw if isinstance(raw, list) else []
+
     try:
-        resp = await client.query_points(
-            collection_name=settings.qdrant_collection,
-            query=vector,
-            limit=want,
-            with_payload=True,
-        )
+        scored = await asyncio.to_thread(_qdrant_query)
     except Exception:
         log.exception("Qdrant query failed for collection %s", settings.qdrant_collection)
         return []
-    finally:
-        await client.close()
 
     hits: list[dict[str, Any]] = []
-    for pt in resp.points:
-        payload = pt.payload or {}
+    for pt in scored:
+        if not isinstance(pt, dict):
+            continue
+        payload = pt.get("payload") or {}
+        if not isinstance(payload, dict):
+            payload = {}
         hits.append(
             {
                 "text": payload.get("text", ""),
@@ -195,7 +213,7 @@ async def retrieve_context(query: str, top_k: int = _TOP_K) -> list[dict[str, An
                 "section": payload.get("section", ""),
                 "product": payload.get("product", ""),
                 "page_number": payload.get("page_number"),
-                "score": pt.score,
+                "score": pt.get("score"),
             }
         )
 

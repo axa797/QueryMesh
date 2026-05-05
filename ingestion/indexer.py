@@ -7,9 +7,9 @@ import logging
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
-from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, PointStruct, VectorParams
+import httpx
 
 from ingestion.chunker import TextChunk, chunk_documents
 from ingestion.embeddings import embed_in_batches
@@ -23,7 +23,7 @@ _NAMESPACE_UUID = uuid.uuid5(uuid.NAMESPACE_URL, "querymesh/ingest/point-id")
 
 @dataclass(frozen=True)
 class RunIndexResult:
-    """CLI exit code + number of vectors upserted (for job status)."""
+    """CLI exit code + number of vectors upserted (for ingestion job store)."""
 
     exit_code: int
     docs_indexed: int
@@ -35,22 +35,65 @@ def _point_id(chunk: TextChunk, ordinal: int) -> str:
     return str(uuid.uuid5(_NAMESPACE_UUID, h))
 
 
-def ensure_collection(client: QdrantClient, name: str, dim: int, recreate: bool) -> None:
-    if recreate:
-        log.info("Recreating Qdrant collection %s (dim=%s)", name, dim)
-        client.recreate_collection(
-            collection_name=name,
-            vectors_config=VectorParams(size=dim, distance=Distance.COSINE),
+def _qdrant_headers(api_key: str | None) -> dict[str, str]:
+    if not api_key:
+        return {}
+    return {"api-key": api_key.strip()}
+
+
+def _qdrant_rest_ensure_collection(
+    base: str,
+    collection: str,
+    dim: int,
+    *,
+    recreate: bool,
+    api_key: str | None,
+    timeout: float,
+) -> None:
+    """Create collection via Qdrant REST (same transport as ``ping_qdrant`` / curl)."""
+    u = base.rstrip("/")
+    headers = _qdrant_headers(api_key)
+    with httpx.Client(timeout=timeout) as client:
+        if recreate:
+            log.info("Recreating Qdrant collection %s (dim=%s)", collection, dim)
+            r = client.delete(f"{u}/collections/{collection}", headers=headers)
+            if r.status_code not in (200, 404):
+                r.raise_for_status()
+        r = client.get(f"{u}/collections/{collection}", headers=headers)
+        if r.status_code == 200:
+            log.info("Using existing collection %s", collection)
+            return
+        if r.status_code != 404:
+            r.raise_for_status()
+        log.info("Creating Qdrant collection %s (dim=%s)", collection, dim)
+        r = client.put(
+            f"{u}/collections/{collection}",
+            headers=headers,
+            json={"vectors": {"size": dim, "distance": "Cosine"}},
         )
-        return
-    if client.collection_exists(collection_name=name):
-        log.info("Using existing collection %s", name)
-        return
-    log.info("Creating Qdrant collection %s (dim=%s)", name, dim)
-    client.create_collection(
-        collection_name=name,
-        vectors_config=VectorParams(size=dim, distance=Distance.COSINE),
-    )
+        r.raise_for_status()
+
+
+def _qdrant_rest_upload_points(
+    base: str,
+    collection: str,
+    points: list[dict[str, Any]],
+    *,
+    api_key: str | None,
+    timeout: float,
+    batch_size: int = 64,
+) -> None:
+    u = base.rstrip("/")
+    headers = {**_qdrant_headers(api_key), "Content-Type": "application/json"}
+    with httpx.Client(timeout=timeout) as client:
+        for i in range(0, len(points), batch_size):
+            batch = points[i : i + batch_size]
+            r = client.put(
+                f"{u}/collections/{collection}/points?wait=true",
+                headers=headers,
+                json={"points": batch},
+            )
+            r.raise_for_status()
 
 
 def run_index(
@@ -63,6 +106,7 @@ def run_index(
     location: str,
     model_id: str,
     recreate: bool,
+    qdrant_timeout_seconds: int = 60,
 ) -> RunIndexResult:
     try:
         raw_docs = load_source_dir(source)
@@ -95,30 +139,45 @@ def run_index(
         return RunIndexResult(1, 0, "Embedding count mismatch")
     dim = len(vectors[0])
 
-    client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key)
+    base = (qdrant_url or "").strip().rstrip("/")
+    if not base:
+        return RunIndexResult(1, 0, "qdrant_url is empty")
+    timeout = float(qdrant_timeout_seconds)
     try:
-        ensure_collection(client, collection, dim, recreate)
-        points = [
-            PointStruct(
-                id=_point_id(chunk, i),
-                vector=vectors[i],
-                payload={
+        _qdrant_rest_ensure_collection(
+            base,
+            collection,
+            dim,
+            recreate=recreate,
+            api_key=qdrant_api_key,
+            timeout=timeout,
+        )
+        points_body = [
+            {
+                "id": _point_id(chunk, i),
+                "vector": vectors[i],
+                "payload": {
                     "text": chunk.text,
                     "source_doc": chunk.source_doc,
                     "section": chunk.section,
                     "product": chunk.product,
                     "page_number": chunk.page_number,
                 },
-            )
+            }
             for i, chunk in enumerate(chunks)
         ]
-        client.upload_points(collection_name=collection, points=points, batch_size=64)
-        log.info("Upserted %s point(s) into %s", len(points), collection)
+        _qdrant_rest_upload_points(
+            base,
+            collection,
+            points_body,
+            api_key=qdrant_api_key,
+            timeout=timeout,
+            batch_size=64,
+        )
+        log.info("Upserted %s point(s) into %s", len(points_body), collection)
     except Exception as e:
         log.exception("Qdrant upsert failed")
         return RunIndexResult(1, 0, str(e))
-    finally:
-        client.close()
     return RunIndexResult(0, len(chunks), "")
 
 
@@ -141,6 +200,12 @@ def main() -> None:
         action="store_true",
         help="Drop and recreate the Qdrant collection.",
     )
+    p.add_argument(
+        "--qdrant-timeout",
+        type=int,
+        default=60,
+        help="REST timeout in seconds for Qdrant API calls (default: 60).",
+    )
     args = p.parse_args()
     r = run_index(
         source=args.source.resolve(),
@@ -151,6 +216,7 @@ def main() -> None:
         location=args.google_cloud_location,
         model_id=args.embedding_model,
         recreate=args.recreate_collection,
+        qdrant_timeout_seconds=args.qdrant_timeout,
     )
     raise SystemExit(r.exit_code)
 

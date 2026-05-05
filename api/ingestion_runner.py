@@ -60,6 +60,7 @@ async def run_ingestion_job(job_id: str, source: str) -> None:
             location=settings.google_cloud_location,
             model_id=settings.vertex_embedding_model,
             recreate=settings.ingestion_recreate_collection,
+            qdrant_timeout_seconds=settings.qdrant_timeout_seconds,
         )
 
     try:

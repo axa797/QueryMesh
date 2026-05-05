@@ -343,6 +343,7 @@ The Cloud Build pipeline runs automatically:
 | `E2B_API_KEY` | E2B sandbox API key |
 | `LANGFUSE_PUBLIC_KEY` | Langfuse project public key |
 | `LANGFUSE_SECRET_KEY` | Langfuse project secret key |
+| `LANGFUSE_HOST` | **Required for Langfuse Cloud US:** `https://us.cloud.langfuse.com`. Omit or use `https://cloud.langfuse.com` only for **EU** cloud (the SDK defaults to EU if unset, which yields **401** with US project keys). Self-hosted: your API base URL. |
 | `PORTAL_JWT_SECRET` | Random string for account portal JWTs |
 
 ---
@@ -374,7 +375,7 @@ Copy `.env.example` → `.env`. All variables are optional unless marked require
 | `E2B_API_KEY` | For code sandbox | — | E2B API key; code generation still runs without it but execution is skipped |
 | `LANGFUSE_PUBLIC_KEY` | No | — | Enables Langfuse request traces |
 | `LANGFUSE_SECRET_KEY` | No | — | Langfuse secret key |
-| `LANGFUSE_HOST` | No | `https://cloud.langfuse.com` | Langfuse endpoint (override for self-hosted) |
+| `LANGFUSE_HOST` | No | *(SDK default)* `https://cloud.langfuse.com` (EU cloud) | Regional API base. **Langfuse Cloud US:** set to `https://us.cloud.langfuse.com`. **EU:** leave unset or set explicitly. Self-hosted: your instance URL. |
 | `LANGFUSE_TRACING_ENVIRONMENT` | No | — | Environment tag on traces (e.g. `production`) |
 | `QUERY_RATE_LIMIT` | No | `60/minute` | Rate limit applied per API key on `POST /query` |
 | `RATE_LIMIT_STORAGE_URI` | No | `REDIS_URL` | Storage backend for rate limiter; `memory://` in tests |

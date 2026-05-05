@@ -160,7 +160,8 @@ steps:
           --platform managed \
           --cpu 2 \
           --memory 4Gi \
-          --min-instances 0 \
+          --no-cpu-throttling \
+          --min-instances 1 \
           --max-instances 10 \
           --port 8080 \
           --allow-unauthenticated \

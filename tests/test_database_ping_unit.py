@@ -9,25 +9,28 @@ from memory import database
 
 
 def test_ping_qdrant_success() -> None:
-    fake_client = MagicMock()
-    fake_client.get_collections = AsyncMock()
-    fake_client.close = AsyncMock()
+    fake_resp = MagicMock()
+    fake_resp.status_code = 200
 
-    with patch("qdrant_client.AsyncQdrantClient", return_value=fake_client):
+    fake_inner = MagicMock()
+    fake_inner.get = AsyncMock(return_value=fake_resp)
+    fake_cm = MagicMock()
+    fake_cm.__aenter__ = AsyncMock(return_value=fake_inner)
+    fake_cm.__aexit__ = AsyncMock(return_value=None)
+
+    with patch("httpx.AsyncClient", return_value=fake_cm):
         ok = asyncio.run(database.ping_qdrant("http://localhost:6333", api_key=None))
 
     assert ok is True
-    fake_client.get_collections.assert_awaited_once()
-    fake_client.close.assert_awaited_once()
+    fake_inner.get.assert_awaited_once()
 
 
 def test_ping_qdrant_failure_returns_false() -> None:
-    fake_client = MagicMock()
-    fake_client.get_collections = AsyncMock(side_effect=OSError("down"))
-    fake_client.close = AsyncMock()
+    fake_cm = MagicMock()
+    fake_cm.__aenter__ = AsyncMock(side_effect=OSError("down"))
+    fake_cm.__aexit__ = AsyncMock(return_value=None)
 
-    with patch("qdrant_client.AsyncQdrantClient", return_value=fake_client):
+    with patch("httpx.AsyncClient", return_value=fake_cm):
         ok = asyncio.run(database.ping_qdrant("http://localhost:6333"))
 
     assert ok is False
-    fake_client.close.assert_awaited_once()

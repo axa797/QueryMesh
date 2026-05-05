@@ -176,4 +176,4 @@ Run Alembic **before** this (see §1 above).
 - Trigger corpus ingest: `POST /ingest {"source":"gcp_docs"}` (API must reach Qdrant)
 - Enable `RAG_VERTEX_RERANK=true` (Cloud Run env var) after enabling Discovery Engine API
 - Set up log-based metrics + alert policies — see [docs/cloud_logging_metrics.md](cloud_logging_metrics.md)
-- Set `LANGFUSE_TRACING_ENVIRONMENT=production` and add Langfuse secrets for trace correlation
+- Langfuse: add `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` secrets, and set **`LANGFUSE_HOST`** on Cloud Run to match your Langfuse Cloud region (e.g. **US:** `https://us.cloud.langfuse.com`). The Langfuse SDK defaults to the **EU** host if unset, which causes **401 Unauthorized** when using US project keys. Optionally set `LANGFUSE_TRACING_ENVIRONMENT=production`.
