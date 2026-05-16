@@ -42,6 +42,8 @@ Pause **`deploy`** / **`tf-apply`** Cloud Build triggers if you do not want a gi
 
 After parking, the Vercel UI shows an offline banner (login disabled; chat/eval/keys graceful) because `/health` is `degraded` when Postgres is stopped.
 
+**Deploy builds** will fail at the Alembic step until SQL is running. Either run `bash scripts/wake_gcp_compute.sh` first, or rely on the deploy pipeline’s `ensure-sql` step (starts stopped SQL automatically before migrate).
+
 ## `run_gcp_eval.sh` — RAGAS eval → `eval_reports` (GCP)
 
 Submits **`infra/cloudbuild-eval.yaml`**: harvest + RAGAS judge + DB persist. Run after deploy/ingest when **`/eval`** is empty.
