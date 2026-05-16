@@ -109,7 +109,8 @@ End-to-end checklist (all must be true for **`oauth_disabled`** to disappear):
 3. **Redeploy `api`** — Trigger the **`deploy`** pipeline (app code push to `main`, or manual `gcloud builds submit --config infra/cloudbuild.yaml`) so Cloud Run picks up new secret bindings.
 4. **Google Cloud Console** — In **APIs & Services → Credentials → OAuth 2.0 Client (Web)**: **Authorized redirect URIs** must include exactly  
    `https://<your-api-run-url>/account/oauth/google/callback`  
-   (same string as **`GOOGLE_OAUTH_REDIRECT_URI`**). **Authorized JavaScript origins** must include your **Vercel** site origin.
+   (same string as **`GOOGLE_OAUTH_REDIRECT_URI`**). **Authorized JavaScript origins** must include your **Vercel** site origin.  
+   **Sign-in branding:** On **OAuth consent screen**, set **App name** to `QueryMesh` (and logo / support email). Google’s “Sign in to continue to …” line often shows the **redirect URI host** (`*.run.app`) because the callback is on the API, not the Vercel UI — that is expected unless you use a **custom domain** on Cloud Run or change the OAuth architecture. The large title can still show **QueryMesh** when the consent screen app name is set.
 5. **Vercel** — **`NEXT_PUBLIC_QUERYMESH_URL`** = public **`api`** URL; redeploy the frontend after changing it (build-time).
 
 **Anti-pattern:** Do **not** populate production Secret Manager OAuth values by `source .env` from a laptop (local `.env` often has `PORTAL_FRONTEND_BASE_URL=http://localhost:3000` and `GOOGLE_OAUTH_REDIRECT_URI=http://127.0.0.1:8000/...`, which causes Google sign-in to succeed then redirect to localhost).
