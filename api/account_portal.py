@@ -23,25 +23,33 @@ async def upsert_user_from_google(
     email_l = email.strip().lower()
 
     row = (
-        await session.execute(
-            text("SELECT id::text FROM users WHERE google_sub = :gs"),
-            {"gs": google_sub},
+        (
+            await session.execute(
+                text("SELECT id::text FROM users WHERE google_sub = :gs"),
+                {"gs": google_sub},
+            )
         )
-    ).mappings().first()
+        .mappings()
+        .first()
+    )
     if row is not None:
         return UUID(str(row["id"]))
 
     row2 = (
-        await session.execute(
-            text(
-                """
+        (
+            await session.execute(
+                text(
+                    """
                 SELECT id::text FROM users
                 WHERE email IS NOT NULL AND lower(trim(email)) = :em
                 """
-            ),
-            {"em": email_l},
+                ),
+                {"em": email_l},
+            )
         )
-    ).mappings().first()
+        .mappings()
+        .first()
+    )
     if row2 is not None:
         uid = UUID(str(row2["id"]))
         await session.execute(

@@ -94,7 +94,6 @@ async def test_google_oauth_mint_api_key_flow(portal_http: httpx.AsyncClient) ->
     uid_str: str | None = None
     verify_mock.side_effect = _claims
     try:
-
         r_start = await portal_http.get("/account/oauth/google/start", follow_redirects=False)
         assert r_start.status_code == 302
         query_state = parse_qs(urlparse(r_start.headers["location"]).query)["state"][0]

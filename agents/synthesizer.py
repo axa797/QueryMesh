@@ -44,7 +44,7 @@ SYNTH_SYSTEM = (
     "When Code agent output describes code or execution results, summarize in prose "
     "(optionally quote at most one ~2-line snippet).\n"
     "If the Code agent JSON includes ``execution.stdout`` and the user asked for the result of "
-    "running the code, a count, or \"only the final output\", lead ``message`` with that stdout "
+    'running the code, a count, or "only the final output", lead ``message`` with that stdout '
     "verbatim (trimmed). One short sentence of prose may follow; do not replace the answer with "
     "an ellipsis or a truncated partial code listing.\n"
     "Do not add facts not present in the agent outputs.\n"
@@ -89,9 +89,7 @@ _REF_BLOCK_HEADING = re.compile(
 )
 
 # Pipeline placeholder when RAG is skipped; the model must not echo it—strip defensively.
-_SKIPPED_RAG_NOTICE = re.compile(
-    r"(?is)(?:^|\n)\s*Retrieval was not routed for this query\.\s*"
-)
+_SKIPPED_RAG_NOTICE = re.compile(r"(?is)(?:^|\n)\s*Retrieval was not routed for this query\.\s*")
 
 
 def finalize_synthesis_display_message(raw: str) -> str:
@@ -322,9 +320,7 @@ def _stream_generate_json_sync(
         longest = merged
         _chunk_n += 1
         provisional = provisional_json_message_field(longest)
-        _prov_fin = (
-            finalize_synthesis_display_message(provisional) if provisional else ""
-        )
+        _prov_fin = finalize_synthesis_display_message(provisional) if provisional else ""
         # region agent log
         _snap = {
             "chunk": _chunk_n,
@@ -338,11 +334,7 @@ def _stream_generate_json_sync(
                 else (
                     "prefix_snap"
                     if piece.startswith(prev_longest)
-                    else (
-                        "keep_longer"
-                        if prev_longest.startswith(piece)
-                        else "append_delta"
-                    )
+                    else ("keep_longer" if prev_longest.startswith(piece) else "append_delta")
                 )
             ),
             "msg_key_i": longest.find('"message"'),
