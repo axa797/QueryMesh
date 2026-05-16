@@ -80,6 +80,26 @@ def _oauth_cookie_secure(redirect_uri: str) -> bool:
     return redirect_uri.lower().startswith("https://")
 
 
+def _user_facing_oauth_error(message: str) -> str:
+    """Map infra failures to stable copy (no errno / driver strings in the browser)."""
+    lower = message.lower()
+    if any(
+        token in lower
+        for token in (
+            "connection refused",
+            "errno 111",
+            "could not connect",
+            "connection reset",
+            "timeout expired",
+            "server closed the connection",
+        )
+    ):
+        return "The API database is unavailable. Start the backend and try again."
+    if lower.startswith("account error:") or "operationalerror" in lower:
+        return "Sign-in could not be completed. Try again when the backend is running."
+    return message
+
+
 @router.get("/oauth/google/start")
 async def oauth_google_start() -> RedirectResponse:
     client_id, _, redirect_uri, _ = _google_oauth_config_or_503()
@@ -114,7 +134,8 @@ async def oauth_google_callback(
     settings = get_settings()
 
     def _frag_error(message: str) -> RedirectResponse:
-        frag = urllib.parse.urlencode({"error": "oauth_failed", "error_description": message})
+        safe = _user_facing_oauth_error(message)
+        frag = urllib.parse.urlencode({"error": "oauth_failed", "error_description": safe})
         resp = _oauth_callback_redirect(settings, frag)
         resp.delete_cookie(key=OAUTH_STATE_COOKIE, path="/account/oauth/google")
         return resp
@@ -189,7 +210,7 @@ async def oauth_google_callback(
                 name=name_claim,
             )
     except Exception as exc:
-        return _frag_error(f"account error: {exc!s}")
+        return _frag_error(str(exc))
 
     frag = urllib.parse.urlencode(
         {

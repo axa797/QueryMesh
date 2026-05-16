@@ -13,6 +13,11 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { getPortalJwt, getStoredApiKey } from "@/lib/auth-storage";
+import { ApiOfflineNotice } from "@/components/ApiOfflineNotice";
+import {
+  formatUserFacingApiError,
+  useApiReachability,
+} from "@/lib/api-reachability";
 import {
   ApiError,
   fetchEvalReportDetail,
@@ -72,6 +77,7 @@ function cellDisplayString(raw: unknown): string {
 
 export default function EvalDetailPage() {
   const router = useRouter();
+  const { apiOffline } = useApiReachability();
   const params = useParams<{ id: string }>();
   const id = decodeURIComponent(
     typeof params?.id === "string" ? params.id : "",
@@ -94,6 +100,11 @@ export default function EvalDetailPage() {
   useEffect(() => {
     const key = apiKey.trim();
     if (!key || !id) return;
+    if (apiOffline) {
+      setDetail(null);
+      setErr(null);
+      return;
+    }
 
     void (async () => {
       try {
@@ -104,10 +115,14 @@ export default function EvalDetailPage() {
         setErr(null);
       } catch (ex) {
         setDetail(null);
-        setErr(ex instanceof ApiError ? ex.message : "Report not found.");
+        setErr(
+          ex instanceof ApiError
+            ? formatUserFacingApiError(ex)
+            : formatUserFacingApiError(ex),
+        );
       }
     })();
-  }, [apiKey, id]);
+  }, [apiKey, id, apiOffline]);
 
   const chartRows = useMemo(() => {
     if (!detail) return [];
@@ -135,6 +150,7 @@ export default function EvalDetailPage() {
 
   return (
     <div className="space-y-6">
+      {apiOffline && <ApiOfflineNotice variant="banner" />}
       <div className="flex flex-wrap items-center gap-3 text-sm">
         <Link href="/eval" className="text-sky-400 hover:text-sky-300">
           ← Reports

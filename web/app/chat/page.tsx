@@ -13,6 +13,11 @@ import {
   loadSessionTitles,
   saveSessionTitle,
 } from "@/lib/chat-session-titles";
+import { ApiOfflineNotice } from "@/components/ApiOfflineNotice";
+import {
+  formatUserFacingApiError,
+  useApiReachability,
+} from "@/lib/api-reachability";
 import {
   ApiError,
   fetchQueryHistory,
@@ -77,6 +82,7 @@ export default function ChatPage() {
   const renameInputRef = useRef<HTMLInputElement>(null);
   const transcriptPanelRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const { apiOffline } = useApiReachability();
 
   useEffect(() => {
     const jwt = getPortalJwt();
@@ -159,15 +165,15 @@ export default function ChatPage() {
   useEffect(() => {
     const key = apiKey.trim();
     const sid = sessionId?.trim();
-    if (!key || !sid) return;
+    if (!key || !sid || apiOffline) return;
     void hydrateFromServer(sid, key);
-  }, [apiKey, sessionId, hydrateFromServer]);
+  }, [apiKey, sessionId, hydrateFromServer, apiOffline]);
 
   useEffect(() => {
     const key = apiKey.trim();
-    if (!key) return;
+    if (!key || apiOffline) return;
     void loadSessions(key);
-  }, [apiKey, loadSessions]);
+  }, [apiKey, loadSessions, apiOffline]);
 
   function setStreamModePersist(next: boolean) {
     setStreamMode(next);
@@ -218,6 +224,7 @@ export default function ChatPage() {
 
   async function send() {
     setErr(null);
+    if (apiOffline) return;
     const q = query.trim();
     if (!q) return;
 
@@ -347,7 +354,7 @@ export default function ChatPage() {
       setQuery("");
       textareaRef.current?.focus();
     } catch (ex) {
-      setErr(ex instanceof Error ? ex.message : "Query failed");
+      setErr(formatUserFacingApiError(ex));
       setTurns((prev) => prev.filter((t) => t.id !== userTurn.id));
     } finally {
       setStreamingPhases([]);
@@ -470,6 +477,11 @@ export default function ChatPage() {
 
       {/* Main column */}
       <div className="relative flex min-w-0 flex-1 flex-col bg-zinc-950/10">
+        {apiOffline && (
+          <div className="shrink-0 border-b border-zinc-800/80 px-3 py-2 sm:px-5">
+            <ApiOfflineNotice variant="banner" className="mx-auto max-w-3xl" />
+          </div>
+        )}
         <div className="pointer-events-none absolute inset-x-0 top-0 z-0 h-px bg-gradient-to-r from-transparent via-sky-500/20 to-transparent" />
         <div
           ref={transcriptPanelRef}
@@ -600,7 +612,7 @@ export default function ChatPage() {
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={onKeyDown}
               rows={3}
-              disabled={loading}
+              disabled={loading || apiOffline}
               className="w-full resize-none rounded-xl border border-zinc-700/80 bg-zinc-900/80 px-4 py-3 text-sm text-zinc-100 outline-none ring-0 transition placeholder:text-zinc-600 focus:border-sky-500/50 focus:shadow-[0_0_0_3px_rgba(56,189,248,0.12)] disabled:opacity-50"
               placeholder="Message QueryMesh… (⌘↵ to send)"
             />
@@ -632,7 +644,7 @@ export default function ChatPage() {
               <button
                 type="button"
                 onClick={() => void send()}
-                disabled={loading || !query.trim()}
+                disabled={loading || apiOffline || !query.trim()}
                 className="rounded-xl bg-gradient-to-r from-sky-600 to-sky-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-sky-900/25 transition hover:from-sky-500 hover:to-sky-400 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {loading ? "Sending…" : "Send"}

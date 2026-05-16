@@ -7,6 +7,11 @@ import {
   getPortalJwt,
   getStoredApiKey,
 } from "@/lib/auth-storage";
+import { ApiOfflineNotice } from "@/components/ApiOfflineNotice";
+import {
+  formatUserFacingApiError,
+  useApiReachability,
+} from "@/lib/api-reachability";
 import {
   ApiError,
   fetchEvalReportsPage,
@@ -16,6 +21,7 @@ import {
 
 export default function EvalListPage() {
   const router = useRouter();
+  const { apiOffline } = useApiReachability();
   const [apiKey, setApiKey] = useState("");
   const [items, setItems] = useState<EvalReportSummaryDTO[]>([]);
   const [total, setTotal] = useState(0);
@@ -40,6 +46,13 @@ export default function EvalListPage() {
       setLoading(false);
       return;
     }
+    if (apiOffline) {
+      setLoading(false);
+      setErr(null);
+      setItems([]);
+      setTotal(0);
+      return;
+    }
     setLoading(true);
     void (async () => {
       try {
@@ -52,17 +65,22 @@ export default function EvalListPage() {
         setTotal(data.total);
         setErr(null);
       } catch (ex) {
-        setErr(ex instanceof ApiError ? ex.message : "Failed to load reports");
+        setErr(
+          ex instanceof ApiError
+            ? formatUserFacingApiError(ex)
+            : formatUserFacingApiError(ex),
+        );
       } finally {
         setLoading(false);
       }
     })();
-  }, [apiKey, page, pageSize]);
+  }, [apiKey, page, pageSize, apiOffline]);
 
   const canNext = total > 0 && page * pageSize < total;
 
   return (
     <div className="space-y-6">
+      {apiOffline && <ApiOfflineNotice variant="banner" />}
       <div>
         <h1 className="text-xl font-semibold text-zinc-100">
           Evaluation reports

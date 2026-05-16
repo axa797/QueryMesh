@@ -1,43 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { ApiOfflineNotice } from "@/components/ApiOfflineNotice";
-import { probeApiHealth } from "@/lib/api-reachability";
+import { probeApiHealth, useApiReachability } from "@/lib/api-reachability";
 import { getApiBase } from "@/lib/querymesh";
 import { QueryMeshLogo } from "@/components/QueryMeshLogo";
 import { SurfaceCard } from "@/components/SurfaceCard";
 
 export default function LoginPage() {
-  const [preflight, setPreflight] = useState<"checking" | "up" | "down">(
-    "checking",
-  );
+  const { state: preflight, apiOffline } = useApiReachability();
   const [checkingOAuth, setCheckingOAuth] = useState(false);
   const [oauthBlocked, setOauthBlocked] = useState(false);
-
-  const apiOffline = preflight === "down";
-
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      const r = await probeApiHealth();
-      if (cancelled) return;
-      setPreflight(r.ok ? "up" : "down");
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  /** When API was down, poll so the button can recover without a full page reload. */
-  useEffect(() => {
-    if (preflight !== "down") return;
-    const id = window.setInterval(() => {
-      void probeApiHealth().then((r) => {
-        setPreflight(r.ok ? "up" : "down");
-      });
-    }, 20000);
-    return () => window.clearInterval(id);
-  }, [preflight]);
 
   const startGoogleOAuth = useCallback(async () => {
     setOauthBlocked(false);
@@ -69,7 +42,7 @@ export default function LoginPage() {
             </p>
           </div>
 
-          {preflight === "down" && (
+          {apiOffline && (
             <ApiOfflineNotice variant="banner" className="w-full" />
           )}
 
@@ -110,7 +83,7 @@ export default function LoginPage() {
                 : "Continue with Google"}
             </button>
 
-            {oauthBlocked && preflight === "up" && (
+            {oauthBlocked && !apiOffline && (
               <ApiOfflineNotice variant="inline" className="w-full" />
             )}
           </div>

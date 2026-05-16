@@ -40,6 +40,8 @@ bash scripts/wake_gcp_compute.sh   # SQL first, then Run (one script; not three 
 
 Pause **`deploy`** / **`tf-apply`** Cloud Build triggers if you do not want a git push to wake services.
 
+After parking, the Vercel UI shows an offline banner (login disabled; chat/eval/keys graceful) because `/health` is `degraded` when Postgres is stopped.
+
 ## `run_gcp_eval.sh` — RAGAS eval → `eval_reports` (GCP)
 
 Submits **`infra/cloudbuild-eval.yaml`**: harvest + RAGAS judge + DB persist. Run after deploy/ingest when **`/eval`** is empty.

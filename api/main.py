@@ -115,8 +115,10 @@ async def health() -> dict:
         api_key=settings.qdrant_api_key,
         timeout=settings.qdrant_timeout_seconds,
     )
+    # Frontend treats status != "ok" (or postgres/redis false) as offline — e.g. parked Cloud SQL.
+    ready = pg_ok and redis_ok
     payload: dict = {
-        "status": "ok",
+        "status": "ok" if ready else "degraded",
         "services": {
             "qdrant": qdrant_ok,
             "redis": redis_ok,

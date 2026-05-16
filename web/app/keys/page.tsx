@@ -8,6 +8,11 @@ import {
   getPortalJwt,
   setStoredApiKey,
 } from "@/lib/auth-storage";
+import { ApiOfflineNotice } from "@/components/ApiOfflineNotice";
+import {
+  formatUserFacingApiError,
+  useApiReachability,
+} from "@/lib/api-reachability";
 import {
   getJson,
   postJson,
@@ -16,6 +21,7 @@ import {
 } from "@/lib/querymesh";
 
 export default function KeysPage() {
+  const { apiOffline } = useApiReachability();
   const [rows, setRows] = useState<ApiKeyListItem[] | null>(null);
   const [minted, setMinted] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -34,6 +40,11 @@ export default function KeysPage() {
       setRows([]);
       return;
     }
+    if (apiOffline) {
+      setRows([]);
+      setErr(null);
+      return;
+    }
     setErr(null);
     try {
       const list = await getJson<ApiKeyListItem[]>("/account/api-keys", {
@@ -41,10 +52,10 @@ export default function KeysPage() {
       });
       setRows(list);
     } catch (ex) {
-      setErr(ex instanceof Error ? ex.message : "Failed to load keys");
+      setErr(formatUserFacingApiError(ex));
       setRows([]);
     }
-  }, []);
+  }, [apiOffline]);
 
   useEffect(() => {
     void load();
@@ -52,7 +63,7 @@ export default function KeysPage() {
 
   async function mint() {
     const t = getPortalJwt();
-    if (!t) return;
+    if (!t || apiOffline) return;
     setErr(null);
     setLoading(true);
     setMinted(null);
@@ -66,7 +77,7 @@ export default function KeysPage() {
       setStoredApiKey(res.api_key);
       await load();
     } catch (ex) {
-      setErr(ex instanceof Error ? ex.message : "Mint failed");
+      setErr(formatUserFacingApiError(ex));
     } finally {
       setLoading(false);
     }
@@ -74,7 +85,7 @@ export default function KeysPage() {
 
   async function revoke(id: string) {
     const t = getPortalJwt();
-    if (!t) return;
+    if (!t || apiOffline) return;
     setErr(null);
     try {
       await postJson<unknown>(
@@ -84,7 +95,7 @@ export default function KeysPage() {
       );
       await load();
     } catch (ex) {
-      setErr(ex instanceof Error ? ex.message : "Revoke failed");
+      setErr(formatUserFacingApiError(ex));
     }
   }
 
@@ -104,6 +115,7 @@ export default function KeysPage() {
 
   return (
     <div className="space-y-6">
+      {apiOffline && <ApiOfflineNotice variant="banner" />}
       <h1 className="text-xl font-semibold text-zinc-50">API keys</h1>
       <p className="text-sm text-zinc-400">
         Mint a key and use it as <code className="font-mono text-xs">Authorization: Bearer</code>{" "}
@@ -113,7 +125,7 @@ export default function KeysPage() {
       <button
         type="button"
         onClick={() => void mint()}
-        disabled={loading}
+        disabled={loading || apiOffline}
         className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-500 disabled:opacity-50"
       >
         {loading ? "Minting…" : "Mint new key"}
