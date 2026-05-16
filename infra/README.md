@@ -100,6 +100,25 @@ Set **`CORS_ALLOW_ORIGINS`** on the **`api`** service to include the printed **`
   to the **`api`** Cloud Run service **only when all four secrets exist**; otherwise the
   API still deploys and portal Google sign-in stays disabled (`503 oauth_disabled`).
 
+### OAuth go-live (portal + Google Sign-In)
+
+End-to-end checklist (all must be true for **`oauth_disabled`** to disappear):
+
+1. **Secret Manager** — Non-empty versions for **`PORTAL_JWT_SECRET`** plus all four OAuth secrets: **`GOOGLE_OAUTH_CLIENT_ID`**, **`GOOGLE_OAUTH_CLIENT_SECRET`**, **`GOOGLE_OAUTH_REDIRECT_URI`**, **`PORTAL_FRONTEND_BASE_URL`**. Use **`scripts/bootstrap_gcp.sh`** prompts or `gcloud secrets versions add`.
+2. **`tf-apply`** — Run the **`tf-apply`** Cloud Build trigger (e.g. push `infra/terraform/**` to `main`) so **`reconcile-deploy`** PATCHes the **`deploy`** trigger’s **`_EXTRA_DEPLOY_ARGS`** with OAuth `--set-secrets` bindings.
+3. **Redeploy `api`** — Trigger the **`deploy`** pipeline (app code push to `main`, or manual `gcloud builds submit --config infra/cloudbuild.yaml`) so Cloud Run picks up new secret bindings.
+4. **Google Cloud Console** — In **APIs & Services → Credentials → OAuth 2.0 Client (Web)**: **Authorized redirect URIs** must include exactly  
+   `https://<your-api-run-url>/account/oauth/google/callback`  
+   (same string as **`GOOGLE_OAUTH_REDIRECT_URI`**). **Authorized JavaScript origins** must include your **Vercel** site origin.
+5. **Vercel** — **`NEXT_PUBLIC_QUERYMESH_URL`** = public **`api`** URL; redeploy the frontend after changing it (build-time).
+
+**Verify without printing secrets** (requires `gcloud` + `jq`, e.g. Cloud Shell):
+
+```bash
+bash scripts/verify_gcp_portal.sh
+VERIFY_HEALTH=1 bash scripts/verify_gcp_portal.sh   # also GET /health
+```
+
 ### Ongoing
 
 | What changed | What to push | Which trigger fires |

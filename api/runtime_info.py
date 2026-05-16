@@ -52,6 +52,12 @@ def build_capabilities(settings: Settings) -> dict[str, Any]:
     out["e2b_sandbox_configured"] = bool(
         (settings.e2b_api_key or "").strip(),
     )
+    out["portal_jwt_configured"] = bool((settings.portal_jwt_secret or "").strip())
+    cid = (settings.google_oauth_client_id or "").strip()
+    csec = (settings.google_oauth_client_secret or "").strip()
+    redir = (settings.google_oauth_redirect_uri or "").strip()
+    front = (settings.portal_frontend_base_url or "").strip()
+    out["oauth_env_configured"] = bool(cid and csec and redir and front)
     return out
 
 

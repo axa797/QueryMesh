@@ -9,6 +9,17 @@ services and CI/CD triggers. See [infra/README.md](../infra/README.md) for the f
 bash scripts/bootstrap_gcp.sh
 ```
 
+## `verify_gcp_portal.sh` — portal / OAuth readiness (GCP)
+
+Read-only checks: required Secret Manager secrets exist and the **`api`** Cloud Run service has the expected env bindings (names only — **no secret values**). Exit `1` if anything required is missing.
+
+```bash
+bash scripts/verify_gcp_portal.sh
+VERIFY_HEALTH=1 bash scripts/verify_gcp_portal.sh
+```
+
+See [infra/README.md](../infra/README.md) (OAuth go-live).
+
 ## `check_secrets.sh` — secret scanner
 
 Scans git history and tracked files for accidentally committed credentials. Run before
