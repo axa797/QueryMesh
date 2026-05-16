@@ -58,6 +58,13 @@ def build_capabilities(settings: Settings) -> dict[str, Any]:
     redir = (settings.google_oauth_redirect_uri or "").strip()
     front = (settings.portal_frontend_base_url or "").strip()
     out["oauth_env_configured"] = bool(cid and csec and redir and front)
+    # Non-secret booleans: which OAuth-related settings resolved non-empty (debug prod without gcloud).
+    out["oauth_env_present"] = {
+        "google_oauth_client_id": bool(cid),
+        "google_oauth_client_secret": bool(csec),
+        "google_oauth_redirect_uri": bool(redir),
+        "portal_frontend_base_url": bool(front),
+    }
     return out
 
 
