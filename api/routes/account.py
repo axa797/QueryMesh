@@ -167,10 +167,15 @@ async def oauth_google_callback(
 
     sub = claims.get("sub")
     email = claims.get("email")
+    display_name = claims.get("name")
     if not isinstance(sub, str) or not sub:
         return _frag_error("missing sub in id_token")
     if not isinstance(email, str) or not email.strip():
         return _frag_error("missing email in id_token")
+
+    name_claim: str | None = None
+    if isinstance(display_name, str) and display_name.strip():
+        name_claim = display_name.strip()
 
     secret = _portal_secret_or_503()
     try:
@@ -180,6 +185,8 @@ async def oauth_google_callback(
                 user_id=uid,
                 secret=secret,
                 ttl_hours=get_settings().portal_jwt_ttl_hours,
+                email=email.strip(),
+                name=name_claim,
             )
     except Exception as exc:
         return _frag_error(f"account error: {exc!s}")

@@ -62,3 +62,15 @@ variable "qdrant_image" {
   type        = string
   default     = "qdrant/qdrant:v1.13.4"
 }
+
+variable "cors_allow_origins" {
+  description = "Comma-separated browser Origins for the FastAPI CORS middleware. Include every production/preview web UI URL the browser uses (e.g. Vercel + Cloud Run web)."
+  type        = string
+  default     = "https://query-mesh.vercel.app"
+}
+
+variable "cors_allow_origin_regex" {
+  description = "Optional Starlette allow_origin_regex for CORS (e.g. all *.vercel.app preview deployments). Set to empty string to disable."
+  type        = string
+  default     = "https://.*\\.vercel\\.app"
+}

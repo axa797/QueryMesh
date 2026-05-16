@@ -8,13 +8,25 @@ from uuid import UUID
 import jwt
 
 
-def issue_portal_token(*, user_id: UUID, secret: str, ttl_hours: int) -> str:
+def issue_portal_token(
+    *,
+    user_id: UUID,
+    secret: str,
+    ttl_hours: int,
+    email: str | None = None,
+    name: str | None = None,
+) -> str:
     if ttl_hours < 1:
         raise ValueError("ttl_hours must be >= 1")
     now = datetime.now(UTC)
     exp = now + timedelta(hours=ttl_hours)
+    payload: dict[str, object] = {"sub": str(user_id), "iat": now, "exp": exp}
+    if email and str(email).strip():
+        payload["email"] = str(email).strip()
+    if name and str(name).strip():
+        payload["name"] = str(name).strip()
     return jwt.encode(
-        {"sub": str(user_id), "iat": now, "exp": exp},
+        payload,
         secret,
         algorithm="HS256",
     )

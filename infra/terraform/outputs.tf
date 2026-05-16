@@ -34,6 +34,16 @@ output "vpc_connector_id" {
   value       = google_vpc_access_connector.connector.id
 }
 
+output "cors_allow_origins" {
+  description = "CORS_ALLOW_ORIGINS passed to Cloud Run api (from var.cors_allow_origins)"
+  value       = var.cors_allow_origins
+}
+
+output "cors_allow_origin_regex" {
+  description = "CORS_ALLOW_ORIGIN_REGEX for Cloud Run api (empty when unset in tfvars)"
+  value       = var.cors_allow_origin_regex
+}
+
 output "deploy_command" {
   description = "Suggested gcloud builds submit _EXTRA_DEPLOY_ARGS (INGESTION_GCP_DOCS_DIR is set in infra/cloudbuild.yaml deploy step — do not duplicate)."
   value = <<-EOT
@@ -44,7 +54,7 @@ output "deploy_command" {
         --vpc-connector=${google_vpc_access_connector.connector.name}
         --vpc-egress=private-ranges-only
         --no-cpu-throttling
-        --set-env-vars=GOOGLE_CLOUD_PROJECT=${var.project_id},GOOGLE_CLOUD_LOCATION=${var.region},QDRANT_COLLECTION=gcp_docs,RAG_VERTEX_RERANK=true,BIGQUERY_PROJECT_ID=${var.project_id},BIGQUERY_DATASET=querymesh,CORS_ALLOW_ORIGINS=https://query-mesh.vercel.app,CORS_ALLOW_ORIGIN_REGEX=https://.*\\.vercel\\.app,LANGFUSE_HOST=https://us.cloud.langfuse.com
+        --set-env-vars=^@^GOOGLE_CLOUD_PROJECT=${var.project_id}@GOOGLE_CLOUD_LOCATION=${var.region}@QDRANT_COLLECTION=gcp_docs@RAG_VERTEX_RERANK=true@BIGQUERY_PROJECT_ID=${var.project_id}@BIGQUERY_DATASET=querymesh@CORS_ALLOW_ORIGINS=${var.cors_allow_origins}@CORS_ALLOW_ORIGIN_REGEX=${var.cors_allow_origin_regex}@LANGFUSE_HOST=https://us.cloud.langfuse.com
       "
   EOT
 }

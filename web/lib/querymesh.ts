@@ -214,6 +214,22 @@ export async function fetchQueryHistory(
   return Array.isArray(res.messages) ? res.messages : [];
 }
 
+export type QuerySessionItem = {
+  session_id: string;
+  last_checkpoint_id: string;
+};
+
+export type QuerySessionsResponse = {
+  sessions: QuerySessionItem[];
+};
+
+export async function fetchQuerySessions(
+  headers: Record<string, string>,
+): Promise<QuerySessionItem[]> {
+  const res = await getJson<QuerySessionsResponse>(`/query/sessions`, headers);
+  return Array.isArray(res.sessions) ? res.sessions : [];
+}
+
 /** Persisted eval report rows from ``GET /eval-reports``. */
 export type EvalReportSummaryDTO = {
   id: string;

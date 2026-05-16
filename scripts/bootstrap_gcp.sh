@@ -197,6 +197,12 @@ create_secret "E2B_API_KEY"         "E2B_API_KEY (from e2b.dev dashboard)"
 create_secret "LANGFUSE_PUBLIC_KEY" "LANGFUSE_PUBLIC_KEY" "true"
 create_secret "LANGFUSE_SECRET_KEY" "LANGFUSE_SECRET_KEY" "true"
 create_secret "PORTAL_JWT_SECRET"   "PORTAL_JWT_SECRET (random string for account portal JWTs)" "true"
+# Optional Google OAuth — all four must exist in Secret Manager + IAM below for Cloud Run to bind them.
+# Redirect URI must match an authorized URI in Google Cloud Console (API callback path).
+create_secret "GOOGLE_OAUTH_CLIENT_ID"     "GOOGLE_OAUTH_CLIENT_ID (OAuth Web client ID; Enter to skip)" "true"
+create_secret "GOOGLE_OAUTH_CLIENT_SECRET" "GOOGLE_OAUTH_CLIENT_SECRET (OAuth client secret; Enter to skip)" "true"
+create_secret "GOOGLE_OAUTH_REDIRECT_URI"  "GOOGLE_OAUTH_REDIRECT_URI (e.g. https://YOUR-API/account/oauth/google/callback; Enter to skip)" "true"
+create_secret "PORTAL_FRONTEND_BASE_URL"   "PORTAL_FRONTEND_BASE_URL (Next origin, e.g. https://your-web — no trailing slash; Enter to skip)" "true"
 # INGEST_TOKEN: a random shared secret used by Cloud Build to call POST /ingest.
 # Generate with: openssl rand -hex 32
 # No user account needed — this bypasses normal API key auth for service-to-service calls only.
@@ -265,7 +271,9 @@ grant_role "serviceAccount:${BUILD_SA}" "roles/secretmanager.admin"
 # Per-secret accessor bindings for the static, user-supplied secrets
 # (DATABASE_URL / REDIS_URL / QDRANT_URL are managed by terraform).
 for secret in API_KEY_PEPPER DB_PASSWORD QDRANT_API_KEY E2B_API_KEY \
-              LANGFUSE_PUBLIC_KEY LANGFUSE_SECRET_KEY PORTAL_JWT_SECRET INGEST_TOKEN; do
+              LANGFUSE_PUBLIC_KEY LANGFUSE_SECRET_KEY PORTAL_JWT_SECRET INGEST_TOKEN \
+              GOOGLE_OAUTH_CLIENT_ID GOOGLE_OAUTH_CLIENT_SECRET GOOGLE_OAUTH_REDIRECT_URI \
+              PORTAL_FRONTEND_BASE_URL; do
   if gcloud secrets describe "$secret" --project="$PROJECT_ID" &>/dev/null; then
     gcloud secrets add-iam-policy-binding "$secret" \
       --project="$PROJECT_ID" \

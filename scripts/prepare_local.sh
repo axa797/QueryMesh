@@ -18,5 +18,4 @@ echo "  cp .env.example .env   # set API_KEY_PEPPER; add GOOGLE_CLOUD_PROJECT on
 echo "  uv sync && uv run --env-file .env alembic upgrade head"
 echo "  PYTHONPATH=. uv run --env-file .env python scripts/mint_api_key.py"
 echo "  PYTHONPATH=. uv run --env-file .env uvicorn api.main:app --reload --host 0.0.0.0 --port 8000"
-echo "Open http://localhost:3000 (Next.js via Docker); set CORS_ALLOW_ORIGINS in .env."
-echo "  Or demo/querymesh-demo.html with CORS for that origin."
+echo "Open http://localhost:3000 (Next.js via Docker); set CORS_ALLOW_ORIGINS in .env for that origin."

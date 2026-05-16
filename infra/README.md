@@ -84,6 +84,24 @@ Or push under `web/` on `main` once the **`web-deploy`** trigger exists ([bootst
 
 Set **`CORS_ALLOW_ORIGINS`** on the **`api`** service to include the printed **`web`** URL.
 
+### CORS from Terraform + Google OAuth secrets
+
+- **CORS:** Allowed browser origins for the API are driven by Terraform variables
+  **`cors_allow_origins`** and **`cors_allow_origin_regex`** (defaults match the historical
+  Vercel example). Override them via **`infra/cloudbuild.tf.yaml`** substitutions
+  **`_CORS_ALLOW_ORIGINS`** / **`_CORS_ALLOW_ORIGIN_REGEX`** on the **`tf-apply`** trigger,
+  or set `cors_allow_origins` / `cors_allow_origin_regex` in `terraform.tfvars` for local
+  `terraform apply`. After changing CORS, run **`tf-apply`** (or push `infra/terraform/**`)
+  so **`reconcile-deploy`** refreshes the **`deploy`** trigger’s `_EXTRA_DEPLOY_ARGS`.
+- **OAuth:** Create all four optional secrets (**`GOOGLE_OAUTH_CLIENT_ID`**,
+  **`GOOGLE_OAUTH_CLIENT_SECRET`**, **`GOOGLE_OAUTH_REDIRECT_URI`**,
+  **`PORTAL_FRONTEND_BASE_URL`**) in Secret Manager — **`scripts/bootstrap_gcp.sh`** can
+  prompt for them. They must match your Google Cloud Console OAuth client (**authorized
+  redirect URIs** = API callback such as `https://<api>/account/oauth/google/callback`;
+  **JavaScript origins** = your Next origin). The **`reconcile-deploy`** step binds these
+  to the **`api`** Cloud Run service **only when all four secrets exist**; otherwise the
+  API still deploys and portal Google sign-in stays disabled (`503 oauth_disabled`).
+
 ### Ongoing
 
 | What changed | What to push | Which trigger fires |

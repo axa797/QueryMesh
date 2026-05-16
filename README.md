@@ -42,6 +42,14 @@ Orchestrator  (Gemini, temp=0 — classifies into retrieval / code_generation / 
 
 ## Architecture overview
 
+High-level system view (source: [`docs/architecture/QueryMesh - System Architecture.excalidraw`](docs/architecture/QueryMesh%20-%20System%20Architecture.excalidraw); dark variant: `QueryMesh - System Architecture_dark.png`).
+
+![QueryMesh system architecture](docs/architecture/QueryMesh%20-%20System%20Architecture.png)
+
+GCP production topology (source: [`docs/architecture/QueryMesh — GCP Infrastructure.excalidraw`](docs/architecture/QueryMesh%20%E2%80%94%20GCP%20Infrastructure.excalidraw)).
+
+![QueryMesh GCP infrastructure](docs/architecture/QueryMesh%20%E2%80%94%20GCP%20Infrastructure.png)
+
 
 | Layer              | Technology                        | Configuration                                                                                   |
 | ------------------ | --------------------------------- | ----------------------------------------------------------------------------------------------- |
@@ -84,7 +92,7 @@ Orchestrator  (Gemini, temp=0 — classifies into retrieval / code_generation / 
 
 - **E2B API key** for the code execution sandbox
 - **Langfuse account** (free at [cloud.langfuse.com](https://cloud.langfuse.com)) for traces and eval dashboards
-- **Node.js 18+** only if you develop the Next.js UI with `npm run dev` outside Docker (**default:** use Docker — see [Web UI](#web-ui))
+- **Node.js 20.x** only if you develop the Next.js UI with `npm run dev` outside Docker (same major as [`web/Dockerfile`](web/Dockerfile); **default:** use Docker — see [Web UI](#web-ui))
 
 ---
 
@@ -120,12 +128,13 @@ After this, every `git push origin main` deploys automatically.
 ### Track B — Local development
 
 ```bash
-./scripts/prepare_local.sh          # creates .venv, installs deps, copies .env.example → .env
-# Edit .env: set API_KEY_PEPPER and GOOGLE_CLOUD_PROJECT at minimum
+./scripts/prepare_local.sh          # Docker Compose: Postgres, Redis, Qdrant, web (:3000); ensures corpus dir exists
+cp .env.example .env                # if you do not already have `.env`
+# Edit .env: set API_KEY_PEPPER and GOOGLE_CLOUD_PROJECT (if using Vertex)
 
-docker compose -f infra/docker-compose.yml up -d # Postgres, Redis, Qdrant, web (:3000); use `--build web` after NEXT_PUBLIC_* / Dockerfile edits
-uv run alembic upgrade head                         # run migrations
-PYTHONPATH=. uv run python scripts/mint_api_key.py  # prints raw key once — save it
+uv sync
+uv run --env-file .env alembic upgrade head
+PYTHONPATH=. uv run --env-file .env python scripts/mint_api_key.py  # prints raw key once — save it
 ```
 
 See `docs/local_dev.md` for the full local walkthrough.
@@ -154,7 +163,7 @@ curl -sS http://127.0.0.1:8000/query \
   -d '{"query": "What are the two new TPU chip variants announced at Next 26?"}' | jq .
 ```
 
-The response includes `message` (user-facing answer), `trace_id` (Langfuse link), `session_id` (pass back for multi-turn), `latency_ms`, and structured outputs from each agent that ran (`rag_structured`, `analytics_structured`, `code_structured`).
+The JSON body includes top-level `session_id`, `trace_id`, `latency_ms`, and a **`response`** object (`status`, **`synthesis`** with the main answer text, **`source_cards`**, plus structured fields such as `rag_structured`, `analytics_structured`, `code_structured` when those agents ran).
 
 **Model overrides** — any of these can be set in `.env` or as environment variables:
 
@@ -211,7 +220,7 @@ See `docs/corpus_runbook.md` for the full runbook.
 
 ## Web UI
 
-A Next.js frontend in `web/` provides Google sign-in, API key management, chat against `POST /query`, and **`/eval`**. Requires `PORTAL_JWT_SECRET`, Google OAuth credentials, **`GOOGLE_OAUTH_REDIRECT_URI`** (API origin), and **`PORTAL_FRONTEND_BASE_URL`** (Next origin where `/oauth/callback` lives).
+A Next.js frontend in `web/` provides Google sign-in, API key management, chat against `POST /query`, and eval reports at **`/eval`**. The **`/eval`** link appears in the top nav only when you are signed in (portal JWT). Requires `PORTAL_JWT_SECRET`, Google OAuth credentials, **`GOOGLE_OAUTH_REDIRECT_URI`** (API origin), and **`PORTAL_FRONTEND_BASE_URL`** (Next origin where `/oauth/callback` lives).
 
 **Local:** run the UI **in Docker always** (`infra/docker-compose.yml` includes **`web`**). From the repo root:
 
@@ -247,15 +256,16 @@ See `web/README.md` for Compose build args and **`npm run dev`** (optional only)
 
 ## Testing
 
-Fast test suite — no GCP credentials, no live Docker services required:
+With Postgres, Redis, and Qdrant reachable (e.g. `docker compose -f infra/docker-compose.yml up -d postgres redis qdrant`) and the env exports below, the full unit suite runs without GCP credentials:
 
 ```bash
 export DATABASE_URL=postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/querymesh
 export API_KEY_PEPPER=local-dev-pepper
 export REDIS_URL=redis://127.0.0.1:6379/0
+export QDRANT_URL=http://127.0.0.1:6333
 export RATE_LIMIT_STORAGE_URI=memory://
 uv run pytest -q
-# Expected: 71 passed, 4 deselected (integration + eval markers require live services/LLM)
+# Expected: 86 passed, 6 deselected (integration + eval markers require live services/LLM)
 ```
 
 CI runs the same suite on every push via `.github/workflows/ci.yml` (Ruff + pytest).

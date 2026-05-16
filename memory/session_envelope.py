@@ -9,6 +9,8 @@ from uuid import UUID
 import redis.asyncio as redis
 from fastapi import HTTPException
 
+from memory.checkpointer import checkpoint_exists_for_thread
+
 SESSION_KEY_PREFIX = "querymesh:session:"
 SESSION_TTL_SEC = 24 * 60 * 60
 
@@ -56,6 +58,24 @@ async def resolve_session(
 
     raw = await redis_client.get(envelope_key(sid))
     if raw is None:
+        # Redis TTL expired or eviction; rebind if Postgres still has graph state.
+        expected_tid = thread_id_for(user_internal_id, sid)
+        try:
+            has_cp = await checkpoint_exists_for_thread(expected_tid)
+        except Exception:
+            has_cp = False
+        if has_cp:
+            payload = {
+                "user_id": str(user_internal_id),
+                "session_id": str(sid),
+                "thread_id": expected_tid,
+            }
+            await redis_client.setex(
+                envelope_key(sid),
+                SESSION_TTL_SEC,
+                json.dumps(payload),
+            )
+            return sid, expected_tid
         raise HTTPException(status_code=403, detail=invalid_session_detail())
 
     try:

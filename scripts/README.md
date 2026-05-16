@@ -42,8 +42,7 @@ PYTHONPATH=. uv run python scripts/mint_api_key.py
 
 ## `prepare_local.sh` — local dev setup
 
-Automates the initial local stack setup (Docker Compose services up, Alembic migrations,
-key minting). See [docs/local_dev.md](../docs/local_dev.md).
+Starts Postgres, Redis, Qdrant, and the Next.js **web** container via Docker Compose; creates `corpus/gcp_docs`. See [docs/local_dev.md](../docs/local_dev.md).
 
 ```bash
 bash scripts/prepare_local.sh

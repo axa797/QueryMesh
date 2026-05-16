@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import ast
 import asyncio
 import json
 import logging
 import re
+import time
 from collections.abc import Callable
 from functools import partial
 from typing import Any, Literal
@@ -29,6 +31,10 @@ SYNTH_SYSTEM = (
     "Do NOT copy internal prompt labels such as 'Earlier turns', 'Orchestrator plan', "
     "'Structured RAG JSON', 'Code agent JSON', or 'Analytics JSON'.\n"
     "Do NOT paste large raw JSON payloads from structured inputs.\n"
+    "When document retrieval was not used for this turn, never tell the user that "
+    '"retrieval was not routed" or that search was skipped—those are internal pipeline '
+    "signals, not user-facing language. Answer the question naturally using only what matters "
+    "(e.g. code or analytics results).\n"
     "Recent conversation is provided as context—use it implicitly; do not dump the thread "
     'verbatim or label it "Earlier turns".\n'
     "Do NOT append a Sources/References/Citations section to `message` and do NOT paste "
@@ -37,6 +43,10 @@ SYNTH_SYSTEM = (
     "When Analytics data includes tables or metrics, summarize counts and headline values.\n"
     "When Code agent output describes code or execution results, summarize in prose "
     "(optionally quote at most one ~2-line snippet).\n"
+    "If the Code agent JSON includes ``execution.stdout`` and the user asked for the result of "
+    "running the code, a count, or \"only the final output\", lead ``message`` with that stdout "
+    "verbatim (trimmed). One short sentence of prose may follow; do not replace the answer with "
+    "an ellipsis or a truncated partial code listing.\n"
     "Do not add facts not present in the agent outputs.\n"
     "Return JSON with keys: message (string), save_memory (null or object with memory_type "
     "one of preference|context|history and content string).\n"
@@ -78,19 +88,68 @@ _REF_BLOCK_HEADING = re.compile(
     r"\s*\*{0,2}\s*:\s*[\s\S]*",
 )
 
+# Pipeline placeholder when RAG is skipped; the model must not echo it—strip defensively.
+_SKIPPED_RAG_NOTICE = re.compile(
+    r"(?is)(?:^|\n)\s*Retrieval was not routed for this query\.\s*"
+)
+
 
 def finalize_synthesis_display_message(raw: str) -> str:
-    """Keep answer prose; drop trailing Sources/Reference bullet dumps."""
-    t = raw.strip()
+    """Keep answer prose; drop pipeline boilerplate and trailing Sources/Reference dumps."""
+    t = _SKIPPED_RAG_NOTICE.sub("\n", raw)
+    t = re.sub(r"\n{3,}", "\n\n", t).strip()
     if not t:
         return raw
-    m = _REF_BLOCK_HEADING.search(raw)
+    m = _REF_BLOCK_HEADING.search(t)
     if not m:
-        return raw
-    head = raw[: m.start()].rstrip()
+        return t
+    head = t[: m.start()].rstrip()
     if head.strip():
         return head
     return "Details are summarized in the source list below."
+
+
+def _parse_execution_stdout(code_structured: Any) -> str | None:
+    """Return trimmed stdout from Code agent ``execution`` when present."""
+    if not isinstance(code_structured, dict):
+        return None
+    ex = code_structured.get("execution")
+    ej: dict[str, Any] | None = None
+    if isinstance(ex, dict):
+        ej = ex
+    elif isinstance(ex, str) and ex.strip():
+        try:
+            parsed = json.loads(ex)
+        except json.JSONDecodeError:
+            try:
+                parsed = ast.literal_eval(ex)
+            except (ValueError, SyntaxError):
+                parsed = None
+        ej = parsed if isinstance(parsed, dict) else None
+    if not isinstance(ej, dict) or ej.get("stdout") is None:
+        return None
+    raw = str(ej.get("stdout", "")).strip()
+    return raw if raw else None
+
+
+def _mask_stream_partial_with_stdout(stdout_anchor: str | None, display: str) -> str:
+    """While JSON streams, show stable stdout when provisional prose diverges from it.
+
+    Provisional `message` extraction often grows through long code-like text before the
+    model finishes a short stdout answer; non-streaming already returns the correct
+    final message. Masking avoids flashing misleading partial text in the UI.
+    """
+    if not stdout_anchor:
+        return display
+    o = stdout_anchor.strip()
+    if not o:
+        return display
+    d = display.strip()
+    if not d:
+        return o
+    if d.startswith(o) or o.startswith(d):
+        return display
+    return o
 
 
 def _offline_analytics_digest(analytics: dict[str, Any] | None) -> str:
@@ -240,17 +299,109 @@ def _stream_generate_json_sync(
         contents=user_blob,
         config=cfg,
     )
-    # Stream chunks expose monotonically growing concatenated JSON text per SDK.
+    # Chunks may be (a) repeated growing full-text snapshots, (b) token deltas, or both.
+    # Vertex streaming often sends non-prefix snapshots after a delta; assigning
+    # ``longest = piece`` corrupts JSON and breaks provisional ``message`` extraction.
+    _DBG = "/Users/user/Desktop/Code/querymesh/.cursor/debug-245362.log"
+    _chunk_n = 0
+    _partial_emits = 0
+    _last_snap: dict[str, Any] | None = None
     for resp in stream:
         piece = _response_text(resp)
         if not piece:
             continue
-        if len(piece) < len(longest):
-            continue
-        longest = piece
+        prev_longest = longest
+        if not longest:
+            merged = piece
+        elif piece.startswith(longest):
+            merged = piece
+        elif longest.startswith(piece):
+            merged = longest
+        else:
+            merged = longest + piece
+        longest = merged
+        _chunk_n += 1
         provisional = provisional_json_message_field(longest)
+        _prov_fin = (
+            finalize_synthesis_display_message(provisional) if provisional else ""
+        )
+        # region agent log
+        _snap = {
+            "chunk": _chunk_n,
+            "len_piece": len(piece),
+            "len_prev_longest": len(prev_longest),
+            "piece_extends_prev": (not prev_longest or piece.startswith(prev_longest)),
+            "prev_extends_piece": bool(prev_longest and prev_longest.startswith(piece)),
+            "merge_mode": (
+                "init"
+                if not prev_longest
+                else (
+                    "prefix_snap"
+                    if piece.startswith(prev_longest)
+                    else (
+                        "keep_longer"
+                        if prev_longest.startswith(piece)
+                        else "append_delta"
+                    )
+                )
+            ),
+            "msg_key_i": longest.find('"message"'),
+            "prov_len": len(_prov_fin) if _prov_fin else 0,
+            "prov_head": (_prov_fin or "")[:160],
+        }
+        _last_snap = _snap
+        if _chunk_n <= 6:
+            try:
+                with open(_DBG, "a", encoding="utf-8") as _df:
+                    _df.write(
+                        json.dumps(
+                            {
+                                "sessionId": "245362",
+                                "runId": "stream-synth",
+                                "hypothesisId": "H1",
+                                "location": "agents/synthesizer.py:_stream_generate_json_sync",
+                                "message": "stream_chunk_sample",
+                                "data": _snap,
+                                "timestamp": int(time.time() * 1000),
+                            },
+                            ensure_ascii=False,
+                        )
+                        + "\n"
+                    )
+            except OSError:
+                pass
+        # endregion agent log
         if provisional and synthesis_partial_sink:
             synthesis_partial_sink(provisional)
+            _partial_emits += 1
+
+    # region agent log
+    if _last_snap is not None:
+        try:
+            with open(_DBG, "a", encoding="utf-8") as _df:
+                _df.write(
+                    json.dumps(
+                        {
+                            "sessionId": "245362",
+                            "runId": "stream-synth",
+                            "hypothesisId": "H1",
+                            "location": "agents/synthesizer.py:_stream_generate_json_sync",
+                            "message": "stream_final",
+                            "data": {
+                                **_last_snap,
+                                "total_chunks": _chunk_n,
+                                "partial_sink_calls": _partial_emits,
+                                "len_acc": len(longest),
+                            },
+                            "timestamp": int(time.time() * 1000),
+                        },
+                        ensure_ascii=False,
+                    )
+                    + "\n"
+                )
+        except OSError:
+            pass
+    # endregion agent log
 
     if not longest:
         raise RuntimeError("empty streamed synthesizer model response")
@@ -322,12 +473,45 @@ async def run_synthesizer(
     try:
         if synthesis_partial_sink is not None:
             loop = asyncio.get_running_loop()
+            _stdout_anchor = _parse_execution_stdout(code_structured)
+            _mask_logged = False
 
             def bridged_sink(m: str) -> None:
+                nonlocal _mask_logged
+                fm = finalize_synthesis_display_message(m)
+                masked = _mask_stream_partial_with_stdout(_stdout_anchor, fm)
+                if _stdout_anchor and masked != fm and not _mask_logged:
+                    _mask_logged = True
+                    try:
+                        with open(
+                            "/Users/user/Desktop/Code/querymesh/.cursor/debug-245362.log",
+                            "a",
+                            encoding="utf-8",
+                        ) as _df:
+                            _df.write(
+                                json.dumps(
+                                    {
+                                        "sessionId": "245362",
+                                        "hypothesisId": "H6",
+                                        "runId": "post-fix",
+                                        "location": "agents/synthesizer.py:bridged_sink",
+                                        "message": "stream_stdout_mask_applied",
+                                        "data": {
+                                            "fm_head": fm[:120],
+                                            "masked_head": masked[:120],
+                                        },
+                                        "timestamp": int(time.time() * 1000),
+                                    },
+                                    ensure_ascii=False,
+                                )
+                                + "\n"
+                            )
+                    except OSError:
+                        pass
                 loop.call_soon_threadsafe(
                     partial(
                         synthesis_partial_sink,
-                        finalize_synthesis_display_message(m),
+                        masked,
                     ),
                 )
 
@@ -365,6 +549,32 @@ async def run_synthesizer(
         return fb
 
     msg_out = finalize_synthesis_display_message(parsed.message)
+
+    # region agent log
+    try:
+        _px = _parse_execution_stdout(code_structured)
+        _stdout_hint = _px[:40] if _px else ""
+        _agent_log = {
+            "sessionId": "245362",
+            "hypothesisId": "FIX_VERIF",
+            "location": "agents/synthesizer.py:run_synthesizer",
+            "message": "synthesis_out_vs_stdout",
+            "data": {
+                "stdout_preview": _stdout_hint,
+                "msg_len": len(msg_out),
+                "msg_leads_digit": bool(msg_out.strip() and msg_out.strip()[0].isdigit()),
+            },
+            "timestamp": int(time.time() * 1000),
+        }
+        with open(
+            "/Users/user/Desktop/Code/querymesh/.cursor/debug-245362.log",
+            "a",
+            encoding="utf-8",
+        ) as _lf:
+            _lf.write(json.dumps(_agent_log, ensure_ascii=False) + "\n")
+    except OSError:
+        pass
+    # endregion agent log
 
     if parsed.save_memory is not None:
         try:

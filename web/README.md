@@ -1,6 +1,6 @@
 # QueryMesh web UI (Next.js)
 
-Simple TypeScript UI for Google-backed portal sign-in, API key minting, chat (`POST /query`), and eval reports at **`/eval`** (`GET /eval-reports`).
+Simple TypeScript UI for Google-backed portal sign-in, API key minting, chat (`POST /query`), and eval reports at **`/eval`** (`GET /eval-reports`). **`/eval`** appears in the header only after sign-in. When signed in, the top-right **avatar** (initials from your email) opens a menu with your **name** and **email** (from OAuth-backed claims in the portal JWT) and **Sign out**.
 
 ## Run (**Docker — recommended**)
 
@@ -32,7 +32,7 @@ docker run --rm -p 3000:3000 querymesh-web:local
 
 ## Alternative — Node on the host (`npm`)
 
-Only useful for active UI development without rebuilding the Docker image:
+Use **Node.js 20.x** (matches [`Dockerfile`](Dockerfile)). Only useful for active UI development without rebuilding the Docker image:
 
 ```bash
 cd web
@@ -41,6 +41,14 @@ cp .env.example .env.local
 npm install
 npm run dev
 ```
+
+## Deploy on Vercel (alternate to Cloud Run `web`)
+
+1. Import the repo in [Vercel](https://vercel.com) with **Root Directory** = `web`.
+2. Under **Project → Settings → Environment Variables** (Production and Preview as needed), set:
+   - **`NEXT_PUBLIC_QUERYMESH_URL`** — public HTTPS URL of the QueryMesh API (Cloud Run `api` service). **Trigger a new deployment** after changing this; the value is baked at build time.
+   - **`NEXT_PUBLIC_LANGFUSE_PUBLIC_URL`** — Langfuse UI base for `/eval` trace links (e.g. `https://us.cloud.langfuse.com`).
+3. Ensure the API allows your Vercel origin via **CORS** — configure `cors_allow_origins` / `cors_allow_origin_regex` in Terraform and run **`tf-apply`**, or extend `_CORS_ALLOW_ORIGINS` (comma-separated) on the **`tf-apply`** Cloud Build trigger. See [infra/README.md](../infra/README.md).
 
 ## Requirements
 

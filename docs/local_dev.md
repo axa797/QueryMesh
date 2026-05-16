@@ -16,7 +16,7 @@ From the repo root:
 ./scripts/prepare_local.sh
 cp .env.example .env
 # Edit .env: set API_KEY_PEPPER (any long random string), GOOGLE_CLOUD_PROJECT if using Vertex.
-# For the browser demo, uncomment CORS_ALLOW_ORIGINS=* at the bottom of .env.
+# For the web UI, uncomment CORS_ALLOW_ORIGINS=* at the bottom of .env.
 
 uv sync
 uv run --env-file .env alembic upgrade head
@@ -43,15 +43,16 @@ curl -s http://127.0.0.1:8000/health | jq .
 
 All of `postgres`, `redis`, and `qdrant` should be `true` once compose is up. If `postgres` is false, run `uv run alembic upgrade head` and confirm `DATABASE_URL` matches compose (`postgresql+asyncpg://postgres:postgres@localhost:5432/querymesh`).
 
-## 4. Browser demo
+## 4. Web UI (Next.js)
 
-1. Open [demo/querymesh-demo.html](../demo/querymesh-demo.html) (double-click or serve with `python -m http.server` from `demo/`).
-2. Set `BASE_URL` to `http://127.0.0.1:8000` and `API_KEY` to the key from `mint_api_key.py`.
-3. Ensure the API process has `CORS_ALLOW_ORIGINS=*` (or your page origin) in `.env`.
+Use the Docker-hosted UI at [http://localhost:3000](http://localhost:3000) (recommended):
 
-**Alternatively — Next.js UI (Docker — default):** `docker compose -f infra/docker-compose.yml up -d` from the repo root (see [`web/README.md`](../web/README.md)) → [http://localhost:3000](http://localhost:3000). Use `docker compose ... up -d --build web` after editing **`infra/docker-compose.yml`** `web.build.args` or `web/Dockerfile`. **`NEXT_PUBLIC_QUERYMESH_URL`** must point at the browser-reachable API. The API needs **`PORTAL_JWT_SECRET`**, the Google OAuth vars, **`PORTAL_FRONTEND_BASE_URL`** matching how you open Next (often `http://localhost:3000`), and **`CORS_ALLOW_ORIGINS`** including that origin (or `*` locally).
+1. From the repo root: `docker compose -f infra/docker-compose.yml up -d` (see [`web/README.md`](../web/README.md)).
+2. Run FastAPI on the host (or wherever the browser can reach) on **port 8000** so **`NEXT_PUBLIC_QUERYMESH_URL`** matches — typically `http://127.0.0.1:8000` in [`infra/docker-compose.yml`](../infra/docker-compose.yml) `web.build.args`.
+3. After changing `web.build.args` or `web/Dockerfile`, rebuild: `docker compose -f infra/docker-compose.yml up -d --build web`.
+4. Set **`PORTAL_JWT_SECRET`**, Google OAuth vars, **`PORTAL_FRONTEND_BASE_URL`** (often `http://localhost:3000`), and **`CORS_ALLOW_ORIGINS`** to include that origin or `*` locally.
 
-**Optional:** `cd web && npm run dev` only if actively editing frontend without rebuilding the image.
+**Optional:** `cd web && npm run dev` only if you are actively editing the frontend without rebuilding the Docker image (requires Node **20.x** to match [`web/Dockerfile`](../web/Dockerfile)).
 
 ## 5. RAG corpus (optional)
 

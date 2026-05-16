@@ -213,9 +213,9 @@ def test_langgraph_config_thread_id_matches_spec(
     app.dependency_overrides[get_current_user_internal_id] = user_override
     app.dependency_overrides[redis_dependency] = redis_override
     try:
-        with TestClient(app) as client:
-            r = client.post("/query", json={"query": "hi"}, headers={"Authorization": "Bearer x"})
-            assert r.status_code == 200
+        client = TestClient(app)
+        r = client.post("/query", json={"query": "hi"}, headers={"Authorization": "Bearer x"})
+        assert r.status_code == 200
         sid = uuid.UUID(r.json()["session_id"])
         expected_tid = thread_id_for(fixed_user_id, sid)
         cfg = captured.get("config") or {}
@@ -223,3 +223,52 @@ def test_langgraph_config_thread_id_matches_spec(
         assert cfg.get("metadata", {}).get("thread_id") == expected_tid
     finally:
         app.dependency_overrides.clear()
+
+
+def test_rehydrates_redis_envelope_when_checkpoint_exists(
+    client_with_session_deps: tuple[TestClient, DictRedis],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, fake = client_with_session_deps
+    r1 = client.post("/query", json={"query": "a"}, headers={"Authorization": "Bearer x"})
+    assert r1.status_code == 200
+    sid = r1.json()["session_id"]
+    del fake.store[envelope_key(uuid.UUID(sid))]
+    monkeypatch.setattr(
+        "memory.session_envelope.checkpoint_exists_for_thread",
+        AsyncMock(return_value=True),
+    )
+    r2 = client.get(
+        f"/query/history?session_id={sid}",
+        headers={"Authorization": "Bearer x"},
+    )
+    assert r2.status_code == 200
+    assert r2.json()["session_id"] == sid
+    assert envelope_key(uuid.UUID(sid)) in fake.store
+
+
+def test_list_query_sessions(
+    client_with_session_deps: tuple[TestClient, DictRedis],
+    monkeypatch: pytest.MonkeyPatch,
+    fixed_user_id: uuid.UUID,
+) -> None:
+    client, _fake = client_with_session_deps
+
+    async def fake_list(uid: uuid.UUID) -> list[dict[str, str]]:
+        assert uid == fixed_user_id
+        return [
+            {
+                "session_id": "cccccccc-cccc-4ccc-cccc-cccccccccccc",
+                "last_checkpoint_id": "ck-max",
+            }
+        ]
+
+    monkeypatch.setattr(
+        "api.routes.query.list_conversation_threads_for_user",
+        fake_list,
+    )
+    r = client.get("/query/sessions", headers={"Authorization": "Bearer x"})
+    assert r.status_code == 200
+    data = r.json()
+    assert data["sessions"][0]["session_id"] == "cccccccc-cccc-4ccc-cccc-cccccccccccc"
+    assert data["sessions"][0]["last_checkpoint_id"] == "ck-max"

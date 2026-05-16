@@ -15,6 +15,7 @@ from graph.message_json import serialize_messages_for_history
 from graph.pipeline import get_compiled_query_graph
 from graph.source_cards import compact_sources_from_hits
 from langchain_core.messages import HumanMessage
+from memory.checkpointer import list_conversation_threads_for_user
 from memory.longterm import compact_to_token_budget, load_top_k_memories
 from memory.redis_client import RedisDep
 from memory.session import get_session_factory
@@ -174,6 +175,16 @@ async def get_query_history(
         "messages": serialized,
         "session_id": session_id.strip(),
     }
+
+
+@router.get("/query/sessions")
+async def list_query_sessions(user_id: CurrentUserId) -> dict[str, Any]:
+    """List LangGraph-backed conversation threads for the authenticated user."""
+    try:
+        items = await list_conversation_threads_for_user(user_id)
+    except Exception:
+        items = []
+    return {"sessions": items}
 
 
 @router.post("/query")

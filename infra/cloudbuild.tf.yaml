@@ -14,6 +14,9 @@ substitutions:
   _REGION: us-central1
   _DEPLOY_TRIGGER: deploy
   _VPC_CONNECTOR_NAME: querymesh-connector
+  # Passed to Terraform; override per project/trigger (comma-safe via @ delimiter in deploy).
+  _CORS_ALLOW_ORIGINS: "https://query-mesh.vercel.app"
+  _CORS_ALLOW_ORIGIN_REGEX: "https://.*\\.vercel\\.app"
 
 options:
   logging: CLOUD_LOGGING_ONLY
@@ -121,6 +124,8 @@ steps:
         terraform plan \
           -var="project_id=${PROJECT_ID}" \
           -var="region=${_REGION}" \
+          -var="cors_allow_origins=${_CORS_ALLOW_ORIGINS}" \
+          -var="cors_allow_origin_regex=${_CORS_ALLOW_ORIGIN_REGEX}" \
           -out=/workspace/tf.plan \
           -input=false
     waitFor: [tf-validate]
@@ -210,10 +215,27 @@ steps:
         upsert_secret_version REDIS_URL    "$${REDIS_URL}"
         upsert_secret_version QDRANT_URL   "$${QDRANT_URL}"
 
+        CORS_ORIGINS=$(json cors_allow_origins)
+        CORS_REGEX=$(json cors_allow_origin_regex)
+
+        # OAuth: bind all four secrets only when present so first-time deploys skip
+        # until operators copy values from Google Cloud Console into Secret Manager.
+        OAUTH_SECRETS=""
+        if gcloud secrets describe GOOGLE_OAUTH_CLIENT_ID --project="${PROJECT_ID}" &>/dev/null \
+          && gcloud secrets describe GOOGLE_OAUTH_CLIENT_SECRET --project="${PROJECT_ID}" &>/dev/null \
+          && gcloud secrets describe GOOGLE_OAUTH_REDIRECT_URI --project="${PROJECT_ID}" &>/dev/null \
+          && gcloud secrets describe PORTAL_FRONTEND_BASE_URL --project="${PROJECT_ID}" &>/dev/null; then
+          OAUTH_SECRETS=",GOOGLE_OAUTH_CLIENT_ID=GOOGLE_OAUTH_CLIENT_ID:latest,GOOGLE_OAUTH_CLIENT_SECRET=GOOGLE_OAUTH_CLIENT_SECRET:latest,GOOGLE_OAUTH_REDIRECT_URI=GOOGLE_OAUTH_REDIRECT_URI:latest,PORTAL_FRONTEND_BASE_URL=PORTAL_FRONTEND_BASE_URL:latest"
+          echo "  [+] OAuth: all four Secret Manager bindings will be included."
+        else
+          echo "  [i] OAuth: optional secrets missing — omitting Google OAuth env bindings (see scripts/bootstrap_gcp.sh)."
+        fi
+
         # --- Compose _EXTRA_DEPLOY_ARGS for the deploy trigger ---
         # Spaces are intentional: Cloud Run's gcloud run deploy reads this as a
         # single flag blob via shell expansion in infra/cloudbuild.yaml.
-        EXTRA_ARGS="--set-secrets=API_KEY_PEPPER=API_KEY_PEPPER:latest,E2B_API_KEY=E2B_API_KEY:latest,DATABASE_URL=DATABASE_URL:latest,REDIS_URL=REDIS_URL:latest,QDRANT_URL=QDRANT_URL:latest,QDRANT_API_KEY=QDRANT_API_KEY:latest,LANGFUSE_PUBLIC_KEY=LANGFUSE_PUBLIC_KEY:latest,LANGFUSE_SECRET_KEY=LANGFUSE_SECRET_KEY:latest,INGEST_TOKEN=INGEST_TOKEN:latest,PORTAL_JWT_SECRET=PORTAL_JWT_SECRET:latest --add-cloudsql-instances=$${SQL_CONN} --vpc-connector=$${VPC_CONN_NAME} --vpc-egress=private-ranges-only --set-env-vars=^@^GOOGLE_CLOUD_PROJECT=${PROJECT_ID}@GOOGLE_CLOUD_LOCATION=${_REGION}@QDRANT_COLLECTION=gcp_docs@RAG_VERTEX_RERANK=true@CORS_ALLOW_ORIGINS=https://query-mesh.vercel.app@CORS_ALLOW_ORIGIN_REGEX=https://.*\\.vercel\\.app@LANGFUSE_HOST=https://us.cloud.langfuse.com"
+        # CORS uses @ delimiter so comma-separated origins stay in one var.
+        EXTRA_ARGS="--set-secrets=API_KEY_PEPPER=API_KEY_PEPPER:latest,E2B_API_KEY=E2B_API_KEY:latest,DATABASE_URL=DATABASE_URL:latest,REDIS_URL=REDIS_URL:latest,QDRANT_URL=QDRANT_URL:latest,QDRANT_API_KEY=QDRANT_API_KEY:latest,LANGFUSE_PUBLIC_KEY=LANGFUSE_PUBLIC_KEY:latest,LANGFUSE_SECRET_KEY=LANGFUSE_SECRET_KEY:latest,INGEST_TOKEN=INGEST_TOKEN:latest,PORTAL_JWT_SECRET=PORTAL_JWT_SECRET:latest$${OAUTH_SECRETS} --add-cloudsql-instances=$${SQL_CONN} --vpc-connector=$${VPC_CONN_NAME} --vpc-egress=private-ranges-only --set-env-vars=^@^GOOGLE_CLOUD_PROJECT=${PROJECT_ID}@GOOGLE_CLOUD_LOCATION=${_REGION}@QDRANT_COLLECTION=gcp_docs@RAG_VERTEX_RERANK=true@CORS_ALLOW_ORIGINS=$${CORS_ORIGINS}@CORS_ALLOW_ORIGIN_REGEX=$${CORS_REGEX}@LANGFUSE_HOST=https://us.cloud.langfuse.com"
 
         echo
         echo "=== Reconciling deploy trigger substitution ==="
