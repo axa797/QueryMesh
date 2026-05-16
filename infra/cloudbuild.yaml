@@ -165,7 +165,7 @@ steps:
           --max-instances 10 \
           --port 8080 \
           --allow-unauthenticated \
-          --set-env-vars=INGESTION_GCP_DOCS_DIR=/app/corpus/gcp_docs \
+          --set-env-vars=INGESTION_GCP_DOCS_DIR=/app/corpus/gcp_docs,QUERYMESH_BUILD_ID=${BUILD_ID} \
           ${_EXTRA_DEPLOY_ARGS}
     waitFor: [migrate]
 

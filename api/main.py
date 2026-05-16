@@ -124,7 +124,11 @@ async def health() -> dict:
         },
         "capabilities": build_capabilities(settings),
     }
-    # Cloud Run–injected env (used to confirm which revision serves traffic vs OAuth/Swagger drift)
+    # Deploy fingerprints (set in infra/cloudbuild.yaml deploy step)
+    build_id = os.environ.get("QUERYMESH_BUILD_ID")
+    if build_id:
+        payload["deploy_build_id"] = build_id
+    # Cloud Run–injected env
     revision = os.environ.get("K_REVISION")
     service = os.environ.get("K_SERVICE")
     if revision:
