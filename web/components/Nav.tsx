@@ -12,6 +12,9 @@ export function Nav() {
           <Link href="/chat" className="hover:text-zinc-200">
             Chat
           </Link>
+          <Link href="/eval" className="hover:text-zinc-200">
+            Eval
+          </Link>
         </nav>
         <div className="ml-auto">
           <AuthControls />

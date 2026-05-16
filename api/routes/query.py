@@ -9,9 +9,11 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
+from graph.message_json import serialize_messages_for_history
 from graph.pipeline import get_compiled_query_graph
+from graph.source_cards import compact_sources_from_hits
 from langchain_core.messages import HumanMessage
 from memory.longterm import compact_to_token_budget, load_top_k_memories
 from memory.redis_client import RedisDep
@@ -59,26 +61,6 @@ def _pipeline_log_extra(graph_out: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
-def _compact_sources(retrieval_hits: list[Any]) -> list[dict[str, Any]]:
-    out: list[dict[str, Any]] = []
-    for h in retrieval_hits:
-        if not isinstance(h, dict):
-            continue
-        txt = str(h.get("text") or "")
-        out.append(
-            {
-                "point_id": str(h.get("point_id") or ""),
-                "source_doc": str(h.get("source_doc") or ""),
-                "section": str(h.get("section") or ""),
-                "product": str(h.get("product") or ""),
-                "page_number": h.get("page_number"),
-                "score": h.get("score"),
-                "excerpt": txt[:400],
-            }
-        )
-    return out
-
-
 def _build_success_payload(
     *,
     graph_out: dict[str, Any],
@@ -97,7 +79,7 @@ def _build_success_payload(
             "echo_reply": graph_out.get("echo_reply"),
             "orchestrator": graph_out.get("orchestrator"),
             "retrieval_hits": retrieval_hits,
-            "source_cards": _compact_sources(retrieval_hits),
+            "source_cards": compact_sources_from_hits(retrieval_hits),
             "analytics_structured": graph_out.get("analytics_structured"),
             "code_structured": graph_out.get("code_structured"),
             "rag_structured": graph_out.get("rag_structured"),
@@ -113,6 +95,15 @@ def _sse_chunk(obj: dict[str, Any]) -> str:
     return f"data: {json.dumps(obj)}\n\n"
 
 
+def _langgraph_chunk_mode_payload(chunk: Any) -> tuple[Any, Any]:
+    """Unpack ``astream`` chunk for ``stream_mode`` list (optional subgraph triple)."""
+    if isinstance(chunk, tuple) and len(chunk) == 2:
+        return chunk[0], chunk[1]
+    if isinstance(chunk, tuple) and len(chunk) == 3:
+        return chunk[1], chunk[2]
+    return None, chunk
+
+
 @dataclass(frozen=True)
 class _TurnContext:
     session_id_str: str
@@ -122,7 +113,13 @@ class _TurnContext:
     invoke_input: dict[str, Any]
 
 
-async def _load_turn(user_id: UUID, body: QueryRequest, redis: RedisDep) -> _TurnContext:
+async def _load_turn(
+    user_id: UUID,
+    body: QueryRequest,
+    redis: RedisDep,
+    *,
+    stream_synthesis: bool = False,
+) -> _TurnContext:
     session_id, thread_id = await resolve_session(redis, user_id, body.session_id)
     session_id_str = str(session_id)
 
@@ -135,6 +132,7 @@ async def _load_turn(user_id: UUID, body: QueryRequest, redis: RedisDep) -> _Tur
         thread_id=thread_id,
         session_id=session_id_str,
         user_id=str(user_id),
+        stream_synthesis=stream_synthesis,
     )
     invoke_input: dict[str, Any] = {
         "user_id": str(user_id),
@@ -149,6 +147,33 @@ async def _load_turn(user_id: UUID, body: QueryRequest, redis: RedisDep) -> _Tur
         memory_compact=memory_compact,
         invoke_input=invoke_input,
     )
+
+
+@router.get("/query/history")
+async def get_query_history(
+    user_id: CurrentUserId,
+    redis: RedisDep,
+    session_id: str | None = Query(default=None),
+) -> dict[str, Any]:
+    """Checkpoint message list for ``session_id`` (no Redis mint on omission)."""
+    if session_id is None or not session_id.strip():
+        return {"messages": [], "session_id": None}
+
+    _, thread_id = await resolve_session(redis, user_id, session_id.strip())
+    invoke_cfg_min = {"configurable": {"thread_id": thread_id}}
+    graph = await get_compiled_query_graph()
+    snap = await graph.aget_state(invoke_cfg_min)
+    vals = getattr(snap, "values", None)
+    raw_messages = vals.get("messages") if isinstance(vals, dict) else None
+    if raw_messages is None:
+        serialized: list[Any] = []
+    else:
+        serialized = serialize_messages_for_history(raw_messages)
+
+    return {
+        "messages": serialized,
+        "session_id": session_id.strip(),
+    }
 
 
 @router.post("/query")
@@ -225,7 +250,7 @@ async def post_query_stream(
     body: QueryRequest,
     redis: RedisDep,
 ) -> StreamingResponse:
-    """Stream LangGraph with coarse ``phase`` events, then a JSON ``done`` payload."""
+    """Stream LangGraph phases, synthesis text preview (JSON ``message``), then JSON ``done``."""
 
     async def event_iter() -> AsyncIterator[str]:
         t0 = time.monotonic()
@@ -234,20 +259,34 @@ async def post_query_stream(
         memory_compact = ""
         graph_out: dict[str, Any] = {}
         try:
-            turn = await _load_turn(user_id, body, redis)
+            turn = await _load_turn(user_id, body, redis, stream_synthesis=True)
             session_id_str = turn.session_id_str
             trace_id = turn.trace_id
             memory_compact = turn.memory_compact
 
             graph = await get_compiled_query_graph()
 
-            async for update in graph.astream(
+            async for chunk in graph.astream(
                 turn.invoke_input,
                 config=turn.invoke_cfg,
-                stream_mode="updates",
+                stream_mode=["updates", "custom"],
             ):
-                for node_name in update:
-                    yield _sse_chunk({"type": "phase", "node": node_name})
+                mode, payload = _langgraph_chunk_mode_payload(chunk)
+                if mode == "updates" and isinstance(payload, dict):
+                    for node_name in payload:
+                        yield _sse_chunk({"type": "phase", "node": node_name})
+                elif mode == "custom" and isinstance(payload, dict):
+                    if (
+                        payload.get("type") == "assistant_partial"
+                        and isinstance(payload.get("message"), str)
+                        and payload["message"].strip()
+                    ):
+                        yield _sse_chunk(
+                            {
+                                "type": "assistant_partial",
+                                "message": payload["message"],
+                            }
+                        )
 
             snap = await graph.aget_state(turn.invoke_cfg)
             vals = getattr(snap, "values", None)

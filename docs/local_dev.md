@@ -47,7 +47,9 @@ All of `postgres`, `redis`, and `qdrant` should be `true` once compose is up. If
 2. Set `BASE_URL` to `http://127.0.0.1:8000` and `API_KEY` to the key from `mint_api_key.py`.
 3. Ensure the API process has `CORS_ALLOW_ORIGINS=*` (or your page origin) in `.env`.
 
-**Alternatively — Next.js UI:** from [web/README.md](../web/README.md): `cd web && cp .env.example .env.local && npm install && npm run dev` → [http://localhost:3000](http://localhost:3000). Or Docker: `docker compose -f infra/docker-compose.yml up -d --build web` (API URL baked at image build; default targets `http://127.0.0.1:8000`). Register/login, mint keys, and chat against `POST /query`. The API needs **`PORTAL_JWT_SECRET`** and `CORS_ALLOW_ORIGINS` including `http://localhost:3000` (or `*` locally).
+**Alternatively — Next.js UI (Docker — default):** `docker compose -f infra/docker-compose.yml up -d` from the repo root (see [`web/README.md`](../web/README.md)) → [http://localhost:3000](http://localhost:3000). Use `docker compose ... up -d --build web` after editing **`infra/docker-compose.yml`** `web.build.args` or `web/Dockerfile`. **`NEXT_PUBLIC_*`** values are those **build args**. The API needs **`PORTAL_JWT_SECRET`** and `CORS_ALLOW_ORIGINS` including `http://localhost:3000` (or `*` locally).
+
+**Optional:** `cd web && npm run dev` only if actively editing frontend without rebuilding the image.
 
 ## 5. RAG corpus (optional)
 

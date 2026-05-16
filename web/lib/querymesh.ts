@@ -45,6 +45,7 @@ export type QueryMeshSuccess = {
 
 export type StreamQueryEvent =
   | { type: "phase"; node: string }
+  | { type: "assistant_partial"; message: string }
   | { type: "done"; payload: QueryMeshSuccess }
   | { type: "error"; message: string };
 
@@ -136,6 +137,11 @@ export async function postQueryStream(
         const o = obj as Record<string, unknown>;
         if (o?.type === "phase" && typeof o.node === "string") {
           onEvent({ type: "phase", node: o.node });
+        } else if (
+          o?.type === "assistant_partial" &&
+          typeof o.message === "string"
+        ) {
+          onEvent({ type: "assistant_partial", message: o.message });
         } else if (o?.type === "done" && o.payload && typeof o.payload === "object") {
           onEvent({
             type: "done",
@@ -181,4 +187,129 @@ export function formatQueryReply(data: QueryMeshSuccess): string {
   const msg = data.response?.synthesis?.message;
   if (typeof msg === "string" && msg.trim()) return msg;
   return JSON.stringify(data, null, 2);
+}
+
+/** Role strings from GET /query/history (checkpoint transcript). */
+export type HistoryMessageRow = {
+  role: "user" | "assistant" | "tool";
+  content: string;
+  /** Present on assistant rows when retrieval produced hits for that turn. */
+  source_cards?: SourceCard[];
+};
+
+export type QueryHistoryResponse = {
+  messages: HistoryMessageRow[];
+  session_id: string | null;
+};
+
+export async function fetchQueryHistory(
+  sessionId: string,
+  headers: Record<string, string>,
+): Promise<HistoryMessageRow[]> {
+  const q = encodeURIComponent(sessionId);
+  const res = await getJson<QueryHistoryResponse>(
+    `/query/history?session_id=${q}`,
+    headers,
+  );
+  return Array.isArray(res.messages) ? res.messages : [];
+}
+
+/** Persisted eval report rows from ``GET /eval-reports``. */
+export type EvalReportSummaryDTO = {
+  id: string;
+  created_at: string;
+  mode: string;
+  n_samples: number;
+  aggregate_metrics: Record<string, number>;
+  judge_model: string;
+  embedding_model: string;
+  langfuse_trace_id: string | null;
+  trigger: string;
+};
+
+export type EvalReportDetailDTO = EvalReportSummaryDTO & {
+  per_row_metrics: Record<string, unknown>[];
+  git_commit: string | null;
+};
+
+export type PaginatedEvalReportsDTO = {
+  items: EvalReportSummaryDTO[];
+  total: number;
+  page: number;
+  page_size: number;
+};
+
+/**
+ * Normalizes 32-char hex OTEL-style ids to hyphenated UUIDs for Langfuse ``/traces/`` segments.
+ *
+ * Persisted Langfuse URLs from ``evals.ragas_eval`` (``get_trace_url``) skip this entirely.
+ */
+function formatLangfuseTraceIdForPath(id: string): string {
+  const t = id.trim();
+  if (/^[0-9a-f]{32}$/i.test(t)) {
+    return `${t.slice(0, 8)}-${t.slice(8, 12)}-${t.slice(12, 16)}-${t.slice(16, 20)}-${t.slice(20)}`;
+  }
+  return t;
+}
+
+/**
+ * Absolute Langfuse trace URL when the persisted value or env allows building one.
+ *
+ * Langfuse UI paths are ``{origin}/project/{projectId}/traces/{traceId}``, not ``/traces/{id}``.
+ */
+export function langfuseTraceUrl(
+  traceIdOrUrl: string | null | undefined,
+): string | null {
+  const raw = traceIdOrUrl?.trim();
+  if (!raw) return null;
+
+  // Eval CLI persists the SDK ``get_trace_url`` result (correct region + project).
+  if (/^https?:\/\//i.test(raw)) {
+    try {
+      return new URL(raw).toString();
+    } catch {
+      return null;
+    }
+  }
+
+  const base = (process.env.NEXT_PUBLIC_LANGFUSE_PUBLIC_URL || "").replace(
+    /\/$/,
+    "",
+  );
+  if (!base) return null;
+
+  const projectId = (process.env.NEXT_PUBLIC_LANGFUSE_PROJECT_ID || "").replace(
+    /\/$/,
+    "",
+  );
+  if (!projectId) return null;
+
+  const traceSegment = encodeURIComponent(formatLangfuseTraceIdForPath(raw));
+  const proj = encodeURIComponent(projectId);
+
+  try {
+    return new URL(`/project/${proj}/traces/${traceSegment}`, `${base}/`)
+      .toString();
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchEvalReportsPage(
+  page: number,
+  pageSize: number,
+  headers: Record<string, string>,
+): Promise<PaginatedEvalReportsDTO> {
+  const q = `page=${page}&page_size=${pageSize}`;
+  return getJson<PaginatedEvalReportsDTO>(`/eval-reports?${q}`, headers);
+}
+
+export async function fetchEvalReportDetail(
+  id: string,
+  headers: Record<string, string>,
+): Promise<EvalReportDetailDTO> {
+  return getJson<EvalReportDetailDTO>(
+    `/eval-reports/${encodeURIComponent(id)}`,
+    headers,
+  );
 }

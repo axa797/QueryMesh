@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from collections.abc import Callable
 from typing import Annotated, Any
 from uuid import UUID
 
@@ -15,12 +16,14 @@ from agents.synthesizer import run_synthesizer
 from api.settings import get_settings
 from langchain_core.messages import AIMessage, AnyMessage
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+from langgraph.config import get_config, get_stream_writer
 from langgraph.graph import END, START, StateGraph, add_messages
 from memory.checkpointer import get_checkpoint_pool
 from tools.retrieval_tool import retrieve_context
 from typing_extensions import TypedDict
 
 from graph.conversation import format_messages_compact, prior_messages_for_prompt
+from graph.source_cards import compact_sources_from_hits
 
 _compiled_lock = asyncio.Lock()
 _compiled_graph: Any = None
@@ -199,12 +202,35 @@ async def rag_structured_node(state: QueryGraphState) -> dict[str, Any]:
     return {"rag_structured": rag, "pipeline_metrics": {"rag_structured_ms": rag_ms}}
 
 
+def _synthesis_partial_channel() -> Callable[[str], None] | None:
+    """When ``POST /query/stream`` sets configurable ``stream_synthesis``, stream JSON ``message``.
+
+    Writes LangGraph ``custom`` stream parts picked up alongside ``updates`` during ``astream``.
+    """
+    cfg = get_config()
+    enabled = bool((cfg.get("configurable") or {}).get("stream_synthesis"))
+    if not enabled:
+        return None
+
+    writer = get_stream_writer()
+    last_seen = [""]
+
+    def sink(msg: str) -> None:
+        if msg == last_seen[0]:
+            return
+        last_seen[0] = msg
+        writer({"type": "assistant_partial", "message": msg})
+
+    return sink
+
+
 async def synthesizer_node(state: QueryGraphState) -> dict[str, Any]:
     uid_s = (state.get("user_id") or "").strip()
     if not uid_s:
         raise ValueError("query graph state requires user_id")
     hist = _history_from_state(state)
     t0 = time.monotonic()
+    synth_sink = _synthesis_partial_channel()
     syn = await run_synthesizer(
         state.get("query") or "",
         state.get("memory_compact") or "",
@@ -214,15 +240,23 @@ async def synthesizer_node(state: QueryGraphState) -> dict[str, Any]:
         state.get("code_structured"),
         UUID(uid_s),
         hist,
+        synthesis_partial_sink=synth_sink,
     )
     synth_ms = max(0, int((time.monotonic() - t0) * 1000))
     msg_text = (syn.get("message") or "").strip()
+    hits_raw = state.get("retrieval_hits") or []
+    hits_list = [h for h in hits_raw if isinstance(h, dict)] if isinstance(hits_raw, list) else []
+    cards = compact_sources_from_hits(hits_list)
+
     out: dict[str, Any] = {
         "synthesis": syn,
         "pipeline_metrics": {"synthesizer_ms": synth_ms},
     }
     if msg_text:
-        out["messages"] = [AIMessage(content=msg_text)]
+        kwargs: dict[str, Any] = {}
+        if cards:
+            kwargs["additional_kwargs"] = {"source_cards": cards}
+        out["messages"] = [AIMessage(content=msg_text, **kwargs)]
     return out
 
 

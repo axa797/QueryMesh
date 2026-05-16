@@ -19,9 +19,26 @@ log = logging.getLogger(__name__)
 RAG_SYSTEM = (
     "You are a GCP documentation expert. Answer using ONLY the provided context chunks. "
     "For every claim, cite the source document and section in the citations array. "
-    "If the context does not contain enough information, say so explicitly in answer. "
+    "Citation entries must be compact: reuse the chunk titles shown in headers like "
+    "'Chunk i | DOCUMENT | section: …'; use \"unknown\" for the document title if missing. "
+    "Never paste long context text inside citation JSON fields.\n"
+    "Large retrieved excerpts are not authorization to ramble—the user may request "
+    "unreasonable length (hundreds/thousands of lines); refuse that format politely but "
+    "still summarize faithfully from snippets when facts exist.\n"
+    "If the context lacks enough substantive material for what was asked, say so in answer. "
     "Do not hallucinate."
 )
+
+
+def _truncate_meta(s: Any, maxlen: int) -> str:
+    if s is None:
+        return ""
+    t = " ".join(str(s).strip().split())
+    if not t or t.lower() in ("none", "null", "n/a"):
+        return ""
+    if len(t) > maxlen:
+        return t[: max(0, maxlen - 1)] + "…"
+    return t
 
 
 class RAGStructuredOut(BaseModel):
@@ -118,9 +135,26 @@ def parse_rag_json(text: str) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise TypeError("RAG JSON must be an object")
     validated = RAGStructuredOut.model_validate(data)
+    cites_raw = validated.citations
+    cites: list[dict[str, Any]] = []
+    for c in cites_raw:
+        if not isinstance(c, dict):
+            continue
+        doc = _truncate_meta(c.get("document"), 260)
+        sec = _truncate_meta(c.get("section"), 260)
+        if not doc and not sec:
+            continue
+        entry: dict[str, Any] = {
+            "document": doc if doc else "unknown",
+            "section": sec,
+        }
+        for pk in ("chunk_id", "point_id"):
+            if pk in c and c[pk] is not None:
+                entry[pk] = str(c[pk])[:128]
+        cites.append(entry)
     return {
         "answer": validated.answer,
-        "citations": list(validated.citations),
+        "citations": cites,
         "confidence": validated.confidence,
     }
 

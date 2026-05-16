@@ -1,9 +1,10 @@
-# Local backing services only. Run API on host per docs/local_dev.md (uvicorn); Cloud Run: infra/README.md.
+# Local backing services + **web UI in Docker always** at http://localhost:3000.
+# Run API on host per docs/local_dev.md (uvicorn); Cloud Run: infra/README.md.
 # Keep Qdrant image within one minor of qdrant-client (pyproject) to avoid SDK warnings / protocol skew.
-# Usage: docker compose -f infra/docker-compose.yml up -d
 #
-# Optional web UI (Next.js): maps http://localhost:3000 — API URL is baked at image build time
-# (see web/Dockerfile). Default assumes FastAPI on the host at port 8000 (browser calls 127.0.0.1:8000).
+# Usage: docker compose -f infra/docker-compose.yml up -d
+# Rebuild Next after changing NEXT_PUBLIC_*: docker compose ... up -d --build web
+# `NEXT_PUBLIC_*` for the Next.js bundle is set at image build time (see web service build.args).
 
 services:
   qdrant:
@@ -39,6 +40,7 @@ services:
       dockerfile: web/Dockerfile
       args:
         NEXT_PUBLIC_QUERYMESH_URL: http://127.0.0.1:8000
+        NEXT_PUBLIC_LANGFUSE_PUBLIC_URL: https://cloud.langfuse.com
     ports:
       - "3000:3000"
 

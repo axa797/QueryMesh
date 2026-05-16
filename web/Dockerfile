@@ -1,7 +1,10 @@
 # Build from repository root:
-#   docker build -f web/Dockerfile --build-arg NEXT_PUBLIC_QUERYMESH_URL=http://127.0.0.1:8000 -t querymesh-web:local .
+#   docker build -f web/Dockerfile \
+#     --build-arg NEXT_PUBLIC_QUERYMESH_URL=http://127.0.0.1:8000 \
+#     --build-arg NEXT_PUBLIC_LANGFUSE_PUBLIC_URL=https://cloud.langfuse.com \
+#     -t querymesh-web:local .
 #
-# NEXT_PUBLIC_* is inlined at build time. Use a URL your *browser* can reach (API on host → 127.0.0.1:8000).
+# NEXT_PUBLIC_* is inlined at build time. Use URLs your *browser* can reach (API on host → 127.0.0.1:8000).
 
 FROM node:20-alpine AS deps
 WORKDIR /app
@@ -13,7 +16,9 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY web/ ./
 ARG NEXT_PUBLIC_QUERYMESH_URL=http://127.0.0.1:8000
+ARG NEXT_PUBLIC_LANGFUSE_PUBLIC_URL=
 ENV NEXT_PUBLIC_QUERYMESH_URL=$NEXT_PUBLIC_QUERYMESH_URL
+ENV NEXT_PUBLIC_LANGFUSE_PUBLIC_URL=$NEXT_PUBLIC_LANGFUSE_PUBLIC_URL
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 

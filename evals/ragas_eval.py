@@ -23,11 +23,16 @@ Uses Vertex (Gemini) via LangChain for RAGAS judge LLM.
 Scores are automatically uploaded to Langfuse as a named trace when
 ``LANGFUSE_PUBLIC_KEY`` and ``LANGFUSE_SECRET_KEY`` are set in the environment.
 View them at https://cloud.langfuse.com → Traces, filter by name "ragas-eval".
+
+Persist aggregate + per-row scores to Postgres with ``--persist`` or
+``EVAL_PERSIST_DATABASE=1`` (requires ``DATABASE_URL`` and Alembic revision
+``005_eval_reports_table``).
 """
 
 from __future__ import annotations
 
 import argparse
+import asyncio
 import datetime
 import json
 import logging
@@ -35,6 +40,7 @@ import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from evals.golden_loader import GoldenRow, load_golden, validate_golden_counts
 
@@ -95,6 +101,71 @@ def _rows_to_ragas_dataset_golden(rows: list[GoldenRow]):
     return EvaluationDataset(samples=samples)
 
 
+def _env_truthy(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _aggregate_from_df(df: Any) -> dict[str, float]:
+    """Mean of numeric metric columns for Langfuse scores and DB aggregate_metrics."""
+    import pandas as pd
+
+    out: dict[str, float] = {}
+    means = df.mean(numeric_only=True)
+    for k, v in means.items():
+        if pd.isna(v):
+            continue
+        try:
+            out[str(k)] = round(float(v), 4)
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
+def _json_cell_for_eval_db(raw: Any) -> Any:
+    """Normalize RAGAS / pandas cell values for JSONB (arrays must not hit ``pd.isna``)."""
+    import numpy as np
+    import pandas as pd
+
+    if raw is None:
+        return None
+    if isinstance(raw, np.ndarray):
+        return raw.tolist()
+    if isinstance(raw, (list, tuple)):
+        return [_json_cell_for_eval_db(x) for x in raw]
+    if isinstance(raw, (bool, np.bool_)):
+        return bool(raw)
+    if isinstance(raw, (int, np.integer)):
+        return int(raw)
+    if isinstance(raw, (float, np.floating)):
+        if pd.isna(raw):
+            return None
+        return round(float(raw), 4)
+    try:
+        if pd.api.types.is_scalar(raw):
+            na = pd.isna(raw)
+            if bool(np.asarray(na).any()):
+                return None
+    except (TypeError, ValueError):
+        pass
+    return str(raw)
+
+
+def _per_row_records_for_db(df: Any, retrieval_rows: list) -> list[dict[str, Any]]:
+    """JSON-serializable per-sample rows keyed by RAGAS column + golden metadata."""
+    out: list[dict[str, Any]] = []
+    for row_obj, (_, ser) in zip(retrieval_rows, df.iterrows()):
+        rec: dict[str, Any] = {
+            "golden_id": str(getattr(row_obj, "id", "")),
+            "category": str(getattr(row_obj, "category", "")),
+            "question_preview": str(getattr(row_obj, "question", ""))[:300],
+        }
+        for col, raw in ser.items():
+            key = str(col)
+            rec[key] = _json_cell_for_eval_db(raw)
+        out.append(rec)
+    return out
+
+
 def _rows_to_ragas_dataset_harvested(rows: list[HarvestedRow]):
     """Build RAGAS dataset from harvested rows (real retrieval + model answers)."""
     from ragas.dataset_schema import EvaluationDataset, SingleTurnSample
@@ -115,7 +186,8 @@ def _rows_to_ragas_dataset_harvested(rows: list[HarvestedRow]):
 
 
 def _upload_to_langfuse(
-    result: object,
+    df: Any,
+    agg: dict[str, float],
     *,
     n_samples: int,
     mode: str,
@@ -124,7 +196,7 @@ def _upload_to_langfuse(
     output_model: str,
     embedding_model: str,
     rerank_enabled: bool,
-) -> None:
+) -> str | None:
     """Upload RAGAS scores to Langfuse: one parent evaluator trace with per-sample child spans.
 
     Parent trace carries full pipeline config in metadata and aggregate scores as Langfuse
@@ -132,7 +204,7 @@ def _upload_to_langfuse(
     scores and the answer preview, so you can see exactly which questions regressed.
 
     Requires LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY in the environment (or
-    LANGFUSE_HOST for self-hosted). Silently skips when not configured.
+    LANGFUSE_HOST for self-hosted). Returns the parent trace id when upload succeeds.
 
     View at: Langfuse → Traces, filter name = "ragas-eval".
     """
@@ -140,18 +212,12 @@ def _upload_to_langfuse(
     secret_key = os.environ.get("LANGFUSE_SECRET_KEY", "")
     if not public_key or not secret_key:
         print("Langfuse upload skipped (LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY not set).")
-        return
+        return None
 
+    trace_id: str | None = None
     try:
-        import pandas as pd  # bundled with ragas deps
+        import numpy as np
         from langfuse import Langfuse
-
-        df: pd.DataFrame = result.to_pandas()  # type: ignore[attr-defined]
-        agg: dict[str, float] = {
-            k: round(float(v), 4)
-            for k, v in df.mean(numeric_only=True).to_dict().items()
-            if isinstance(v, float)
-        }
 
         # Service name shows in resourceAttributes instead of "unknown_service".
         os.environ.setdefault("OTEL_SERVICE_NAME", "querymesh-evals")
@@ -187,9 +253,10 @@ def _upload_to_langfuse(
 
             # Per-sample child spans — one per evaluated row.
             for row, (_, sample_scores) in zip(retrieval_rows, df.iterrows()):
-                per_row: dict[str, float] = {
-                    k: round(float(v), 4) for k, v in sample_scores.items() if isinstance(v, float)
-                }
+                per_row: dict[str, float] = {}
+                for k, raw in sample_scores.items():
+                    if isinstance(raw, (float, np.floating)):
+                        per_row[str(k)] = round(float(raw), 4)
                 answer_preview = getattr(row, "model_answer", getattr(row, "reference_answer", ""))
                 with lf.start_as_current_observation(
                     name=row.id,
@@ -211,11 +278,21 @@ def _upload_to_langfuse(
                         )
 
         lf.flush()
-        lf_host = os.environ.get("LANGFUSE_HOST") or "https://cloud.langfuse.com"
-        print(f"Scores uploaded to Langfuse — trace: {trace_id}")
-        print(f"View at: {lf_host}/traces/{trace_id}")
+        ui_url = lf.get_trace_url(trace_id=trace_id) if trace_id else None
+        if trace_id:
+            print(f"Scores uploaded to Langfuse — trace: {trace_id}")
+            if ui_url:
+                print(f"View at: {ui_url}")
+            else:
+                log.warning(
+                    "Langfuse get_trace_url() returned empty (check credentials); "
+                    "eval dashboard needs NEXT_PUBLIC_LANGFUSE_PROJECT_ID for legacy links.",
+                )
+        # Persist canonical UI URL (/project/<id>/traces/...) — not `{host}/traces/{id}`.
+        return ui_url or trace_id
     except Exception:
         log.exception("Langfuse upload failed (non-fatal)")
+        return None
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -250,6 +327,11 @@ def main(argv: list[str] | None = None) -> int:
         "--dry-run",
         action="store_true",
         help="Only validate golden file; do not import ragas or call judge LLM",
+    )
+    parser.add_argument(
+        "--persist",
+        action="store_true",
+        help="Persist metrics to Postgres (Alembic 005_eval_reports_table; needs DATABASE_URL).",
     )
     args = parser.parse_args(argv)
 
@@ -341,8 +423,12 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Running RAGAS on {len(ds)} samples (LLM judge calls) ...")
     result = evaluate(dataset=ds, metrics=metrics, embeddings=ragas_emb, show_progress=True)
     print(result)
-    _upload_to_langfuse(
-        result,
+
+    df = result.to_pandas()
+    agg = _aggregate_from_df(df)
+    lf_trace_id = _upload_to_langfuse(
+        df,
+        agg,
         n_samples=len(ds),
         mode=mode,
         retrieval_rows=retrieval,
@@ -351,6 +437,38 @@ def main(argv: list[str] | None = None) -> int:
         embedding_model="text-embedding-005",
         rerank_enabled=os.environ.get("RAG_VERTEX_RERANK", "false").lower() == "true",
     )
+
+    persist_db = bool(args.persist or _env_truthy("EVAL_PERSIST_DATABASE"))
+    if persist_db:
+        db_url = (os.environ.get("DATABASE_URL") or "").strip()
+        if not db_url:
+            print("Eval DB persist skipped (DATABASE_URL unset).", file=sys.stderr)
+        else:
+            per_rows = _per_row_records_for_db(df, retrieval)
+            trigger_src = (os.environ.get("EVAL_TRIGGER") or "manual").strip()[:64] or "manual"
+            git_sha = (os.environ.get("GITHUB_SHA") or os.environ.get("GIT_COMMIT") or "").strip()
+
+            async def _insert() -> None:
+                from memory.eval_report_store import insert_eval_report
+
+                await insert_eval_report(
+                    mode=mode,
+                    n_samples=len(ds),
+                    aggregate_metrics=agg,
+                    per_row_metrics=per_rows,
+                    judge_model=model_name,
+                    embedding_model="text-embedding-005",
+                    langfuse_trace_id=lf_trace_id,
+                    trigger=trigger_src,
+                    git_commit=git_sha or None,
+                )
+
+            try:
+                asyncio.run(_insert())
+                print("Eval report persisted to eval_reports table.")
+            except Exception:
+                log.exception("Eval DB persist failed (non-fatal)")
+
     return 0
 
 

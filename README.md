@@ -42,26 +42,29 @@ Orchestrator  (Gemini, temp=0 — classifies into retrieval / code_generation / 
 
 ## Architecture overview
 
-| Layer | Technology | Configuration |
-|---|---|---|
-| API | FastAPI (`api/`) | Bearer auth, sessions, rate limiting, `/query`, `/ingest` |
-| Orchestration | LangGraph (`graph/pipeline.py`) | `GRAPH_MESSAGE_HISTORY_MAX` (default 10 tail messages) |
-| LLM — all agents | Vertex AI Gemini | `VERTEX_LLM_MODEL` (default `gemini-2.5-flash`) |
-| Embeddings | Vertex AI | `VERTEX_EMBEDDING_MODEL` (default `text-embedding-005`) |
-| Semantic reranking | Vertex Discovery Engine | `VERTEX_RANKING_MODEL` (default `semantic-ranker-fast-004`); toggle with `RAG_VERTEX_RERANK` |
-| Vector store | Qdrant | `QDRANT_URL`, `QDRANT_COLLECTION` (default `gcp_docs`); local Docker or Cloud Run |
-| Corpus | Text / PDF / Markdown files | `INGESTION_GCP_DOCS_DIR`; default corpus is Google Cloud Next '26 |
-| Checkpointing | Postgres via `AsyncPostgresSaver` | `DATABASE_URL`; multi-turn memory keyed on `{user_id}:{session_id}` |
-| Session envelope | Redis | `REDIS_URL`; 24 h TTL; graph checkpoint is source of truth for state |
-| Long-term memory | Postgres `user_memory` | Top-5 rows compacted to 256 tokens; loaded before orchestrator on every request |
-| Auth | HMAC-SHA256 API keys | `API_KEY_PEPPER`; keys resolved server-side, never trusted from client |
-| Rate limiting | slowapi | `QUERY_RATE_LIMIT` (default `60/minute`); storage via `RATE_LIMIT_STORAGE_URI` or `REDIS_URL` |
-| Observability | Langfuse (hosted SaaS) | `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`; per-request traces, token counts, eval uploads |
-| Evals | RAGAS | Judge LLM: `VERTEX_LLM_MODEL`; embeddings: `text-embedding-005` (fixed) |
-| Code sandbox | E2B | `E2B_API_KEY`; isolated Python execution, 15 s wall, 64 KiB output cap, no GCP creds in sandbox |
-| Analytics | BigQuery | `BIGQUERY_PROJECT_ID`, `BIGQUERY_DATASET`; read-only SQL, SELECT/WITH only |
-| Account portal | FastAPI + JWT | `PORTAL_JWT_SECRET`; enables browser signup/login + API key minting |
-| CORS | FastAPI middleware | `CORS_ALLOW_ORIGINS` (e.g. `https://your-web-app.vercel.app`) |
+
+| Layer              | Technology                        | Configuration                                                                                   |
+| ------------------ | --------------------------------- | ----------------------------------------------------------------------------------------------- |
+| API                | FastAPI (`api/`)                  | Bearer auth, sessions, rate limiting, `/query`, `/ingest`, **`/eval-reports`**                                     |
+| Orchestration      | LangGraph (`graph/pipeline.py`)   | `GRAPH_MESSAGE_HISTORY_MAX` (default 10 tail messages)                                          |
+| LLM — all agents   | Vertex AI Gemini                  | `VERTEX_LLM_MODEL` (default `gemini-2.5-flash`)                                                 |
+| Embeddings         | Vertex AI                         | `VERTEX_EMBEDDING_MODEL` (default `text-embedding-005`)                                         |
+| Semantic reranking | Vertex Discovery Engine           | `VERTEX_RANKING_MODEL` (default `semantic-ranker-fast-004`); toggle with `RAG_VERTEX_RERANK`    |
+| Vector store       | Qdrant                            | `QDRANT_URL`, `QDRANT_COLLECTION` (default `gcp_docs`); local Docker or Cloud Run               |
+| Corpus             | Text / PDF / Markdown files       | `INGESTION_GCP_DOCS_DIR`; default corpus is Google Cloud Next '26                               |
+| Checkpointing      | Postgres via `AsyncPostgresSaver` | `DATABASE_URL`; multi-turn memory keyed on `{user_id}:{session_id}`                             |
+| Session envelope   | Redis                             | `REDIS_URL`; 24 h TTL; graph checkpoint is source of truth for state                            |
+| Long-term memory   | Postgres `user_memory`            | Top-5 rows compacted to 256 tokens; loaded before orchestrator on every request                 |
+| Auth               | HMAC-SHA256 API keys              | `API_KEY_PEPPER`; keys resolved server-side, never trusted from client                          |
+| Rate limiting      | slowapi                           | `QUERY_RATE_LIMIT` (default `60/minute`); storage via `RATE_LIMIT_STORAGE_URI` or `REDIS_URL`   |
+| Observability      | Langfuse (hosted SaaS)            | `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`; per-request traces, token counts, eval uploads    |
+| Evals              | RAGAS                             | Judge LLM: `VERTEX_LLM_MODEL`; embeddings: `text-embedding-005` (fixed)                         |
+| Eval snapshots     | Postgres `eval_reports`           | Persist with `EVAL_PERSIST_DATABASE=1` or `--persist` (Alembic `005_eval_reports_table`); **`GET /eval-reports`**; browser UI at **`/eval`** (`NEXT_PUBLIC_LANGFUSE_PUBLIC_URL` for Langfuse trace links) |
+| Code sandbox       | E2B                               | `E2B_API_KEY`; isolated Python execution, 15 s wall, 64 KiB output cap, no GCP creds in sandbox |
+| Analytics          | BigQuery                          | `BIGQUERY_PROJECT_ID`, `BIGQUERY_DATASET`; read-only SQL, SELECT/WITH only                      |
+| Account portal     | FastAPI + JWT                     | `PORTAL_JWT_SECRET`; enables browser signup/login + API key minting                             |
+| CORS               | FastAPI middleware                | `CORS_ALLOW_ORIGINS` (e.g. `https://your-web-app.vercel.app`)                                   |
+
 
 ---
 
@@ -81,7 +84,7 @@ Orchestrator  (Gemini, temp=0 — classifies into retrieval / code_generation / 
 
 - **E2B API key** for the code execution sandbox
 - **Langfuse account** (free at [cloud.langfuse.com](https://cloud.langfuse.com)) for traces and eval dashboards
-- **Node.js 18+** only if running the Next.js web UI locally outside Docker
+- **Node.js 18+** only if you develop the Next.js UI with `npm run dev` outside Docker (**default:** use Docker — see [Web UI](#web-ui))
 
 ---
 
@@ -120,7 +123,7 @@ After this, every `git push origin main` deploys automatically.
 ./scripts/prepare_local.sh          # creates .venv, installs deps, copies .env.example → .env
 # Edit .env: set API_KEY_PEPPER and GOOGLE_CLOUD_PROJECT at minimum
 
-docker compose -f infra/docker-compose.yml up -d   # Postgres, Redis, Qdrant
+docker compose -f infra/docker-compose.yml up -d # Postgres, Redis, Qdrant, web (:3000); use `--build web` after NEXT_PUBLIC_* / Dockerfile edits
 uv run alembic upgrade head                         # run migrations
 PYTHONPATH=. uv run python scripts/mint_api_key.py  # prints raw key once — save it
 ```
@@ -168,11 +171,13 @@ RAG_VERTEX_RERANK=true                     # enable/disable reranking (requires 
 
 The corpus is a directory of text, Markdown, or PDF files indexed into Qdrant. It is configured entirely through environment variables — the pipeline does not hard-code any filenames or counts.
 
-| Variable | Default | Purpose |
-|---|---|---|
-| `INGESTION_GCP_DOCS_DIR` | `./corpus/gcp_docs` (local) / `/app/corpus/gcp_docs` (Cloud Run) | Directory the ingest pipeline reads from |
-| `QDRANT_COLLECTION` | `gcp_docs` | Qdrant collection to index into |
-| `INGESTION_RECREATE_COLLECTION` | `false` | Drop and recreate the collection on each ingest run |
+
+| Variable                        | Default                                                          | Purpose                                             |
+| ------------------------------- | ---------------------------------------------------------------- | --------------------------------------------------- |
+| `INGESTION_GCP_DOCS_DIR`        | `./corpus/gcp_docs` (local) / `/app/corpus/gcp_docs` (Cloud Run) | Directory the ingest pipeline reads from            |
+| `QDRANT_COLLECTION`             | `gcp_docs`                                                       | Qdrant collection to index into                     |
+| `INGESTION_RECREATE_COLLECTION` | `false`                                                          | Drop and recreate the collection on each ingest run |
+
 
 **Default corpus:** Google Cloud Next '26 blog posts and announcement pages, fetched by `scripts/fetch_next26_corpus.py`. To use a different corpus, point `INGESTION_GCP_DOCS_DIR` at any directory of supported files.
 
@@ -206,35 +211,37 @@ See `docs/corpus_runbook.md` for the full runbook.
 
 ## Web UI
 
-A Next.js frontend in `web/` provides signup/login, API key management, and a chat interface against `POST /query`. Requires `PORTAL_JWT_SECRET` in the API environment.
+A Next.js frontend in `web/` provides signup/login, API key management, chat against `POST /query`, and **`/eval`**. Requires `PORTAL_JWT_SECRET` in the API environment.
 
-`NEXT_PUBLIC_QUERYMESH_URL` — the API base URL — is **baked into the JS bundle at build time** (Next.js `NEXT_PUBLIC_*` convention). It must be the URL the browser can reach directly (your public Cloud Run `api` URL).
+**Local:** run the UI **in Docker always** (`infra/docker-compose.yml` includes **`web`**). From the repo root:
+
+```bash
+docker compose -f infra/docker-compose.yml up -d
+# docker compose ... up -d --build web   # after changing NEXT_PUBLIC_* in compose
+```
+
+→ [http://localhost:3000](http://localhost:3000). Run uvicorn on the host at **8000** (or adjust `NEXT_PUBLIC_*` **`web.build.args`** in Compose and **`--build`** again).
+
+`NEXT_PUBLIC_QUERYMESH_URL` and **`NEXT_PUBLIC_LANGFUSE_PUBLIC_URL`** are **baked at image build time**. They must be URLs the **browser** can reach (your public Cloud Run API URL in production).
+
+See `web/README.md` — **do not rely on `npm run dev`** for day-to-day use unless you are editing the frontend.
 
 **Option A — Cloud Run (GCP credits, no Vercel):**
 
 1. Deploy the **API** first so it has a public URL.
-2. **First run:** `gcloud builds submit --config infra/cloudbuild-web.yaml` (from repo root, project set to your GCP project). This resolves the live `api` URL, builds [`web/Dockerfile`](web/Dockerfile), pushes to Artifact Registry, and deploys service **`web`**.
-3. **Ongoing:** push changes under `web/` on `main` — the **`web-deploy`** trigger runs the same config (created by [`scripts/bootstrap_gcp.sh`](scripts/bootstrap_gcp.sh) for new setups). Existing projects can add that trigger manually to match.
-4. **CORS:** On the **`api`** Cloud Run service, set `CORS_ALLOW_ORIGINS` to your web origin (the build logs print the `web` URL). Comma-separate multiple origins if needed. Without this, the browser cannot call the API.
+2. **First run:** `gcloud builds submit --config infra/cloudbuild-web.yaml` (from repo root, project set to your GCP project). This resolves the live `api` URL, builds `[web/Dockerfile](web/Dockerfile)`, pushes to Artifact Registry, and deploys service `**web`**.
+3. **Ongoing:** push changes under `web/` on `main` — the `**web-deploy`** trigger runs the same config (created by `[scripts/bootstrap_gcp.sh](scripts/bootstrap_gcp.sh)` for new setups). Existing projects can add that trigger manually to match.
+4. **CORS:** On the `**api`** Cloud Run service, set `CORS_ALLOW_ORIGINS` to your web origin (the build logs print the `web` URL). Comma-separate multiple origins if needed. Without this, the browser cannot call the API.
 
-If your **`deploy`** trigger was created before `web/**` was added to ignored files, update it so **ignored files** includes `web/**` (in addition to `infra/terraform/**`). That avoids running the full API pipeline on web-only commits.
+If your `**deploy**` trigger was created before `web/**` was added to ignored files, update it so **ignored files** includes `web/`** (in addition to `infra/terraform/**`). That avoids running the full API pipeline on web-only commits.
 
-**Option B — Vercel:**
+**Option B — Vercel:** (alternate to Docker-hosted web)
 
 1. Import the repo on [vercel.com](https://vercel.com), **root directory `web`**
-2. Set `NEXT_PUBLIC_QUERYMESH_URL=https://<your-cloud-run-api-url>`
+2. Set `NEXT_PUBLIC_QUERYMESH_URL=https://<your-cloud-run-api-url>` and **`NEXT_PUBLIC_LANGFUSE_PUBLIC_URL`** as needed.
 3. Same **CORS** rule on the API for your `*.vercel.app` origin
 
-**Local development:**
-
-```bash
-docker compose -f infra/docker-compose.yml up -d --build web
-# → http://localhost:3000
-# Defaults NEXT_PUBLIC_QUERYMESH_URL to http://127.0.0.1:8000
-# Set CORS_ALLOW_ORIGINS=http://localhost:3000 in .env
-```
-
-See `web/README.md` for more detail.
+See `web/README.md` for Compose build args and **`npm run dev`** (optional only).
 
 ---
 
@@ -265,12 +272,14 @@ Evals use **RAGAS** (faithfulness, answer relevancy, context precision, context 
 
 **Scores from the last run** (10 retrieval rows, `gemini-2.5-flash` judge, reranking enabled):
 
-| Metric | Score |
-|---|---|
-| Faithfulness | 0.95 |
-| Answer relevancy | 0.70 |
-| Context precision | 0.48 |
-| Context recall | 0.72 |
+
+| Metric            | Score |
+| ----------------- | ----- |
+| Faithfulness      | 0.95  |
+| Answer relevancy  | 0.70  |
+| Context precision | 0.48  |
+| Context recall    | 0.72  |
+
 
 Scores vary with corpus content, `VERTEX_LLM_MODEL`, and `RAG_VERTEX_RERANK`. Re-run after any of these change.
 
@@ -285,7 +294,16 @@ PYTHONPATH=. uv run --env-file .env python evals/harvest.py --categories retriev
 uv sync --group eval
 RUN_EVAL=1 PYTHONPATH=. uv run --group eval --env-file .env \
   python -m evals.ragas_eval --harvested --limit 10
+
+# Persist aggregate + per-row scores to Postgres (same DATABASE_URL + `alembic upgrade head`)
+RUN_EVAL=1 PYTHONPATH=. uv run --group eval --env-file .env \
+  python -m evals.ragas_eval --harvested --limit 10 --persist
 ```
+
+**Persist snapshots** when you append **`--persist`** or set **`EVAL_PERSIST_DATABASE=1`** (requires revision **`005_eval_reports_table`**). Optional: **`EVAL_TRIGGER`**, **`GITHUB_SHA`** / **`GIT_COMMIT`**. Automated **`pytest -m integration`** suites that mint API keys assume Postgres is migrated locally; omit integration runs on DB-less runners.
+
+Browsing: **`/eval`** in the Docker web image (Compose **`web.build.args`**) — set **`NEXT_PUBLIC_LANGFUSE_PUBLIC_URL`** there (or `web/.env.local` only when using **`npm run dev`**).
+
 
 ---
 
@@ -301,8 +319,8 @@ bash scripts/bootstrap_gcp.sh
 
 This enables all required GCP APIs, creates the Artifact Registry repository with a cleanup policy (keeps 5 most recent images), stores secrets in Secret Manager, configures IAM, and creates two Cloud Build triggers:
 
-- **`deploy`** — fires on every push to `main`; builds and deploys the API
-- **`tf-apply`** — fires when `infra/terraform/**` changes; runs `terraform apply`
+- `**deploy**` — fires on every push to `main`; builds and deploys the API
+- `**tf-apply**` — fires when `infra/terraform/**` changes; runs `terraform apply`
 
 ### Provision infrastructure (run once)
 
@@ -333,18 +351,20 @@ The Cloud Build pipeline runs automatically:
 
 ### Required secrets in Secret Manager
 
-| Secret | Description |
-|---|---|
-| `API_KEY_PEPPER` | Long random string for HMAC API key digests |
-| `DB_PASSWORD` | Postgres password for the `querymesh` user |
-| `QDRANT_API_KEY` | Auth key for the Qdrant Cloud Run service |
-| `QDRANT_URL` | Internal Cloud Run URL for Qdrant (`terraform output qdrant_url`) |
-| `INGEST_TOKEN` | Service-to-service token for `POST /ingest` — generate with `openssl rand -hex 32` |
-| `E2B_API_KEY` | E2B sandbox API key |
-| `LANGFUSE_PUBLIC_KEY` | Langfuse project public key |
-| `LANGFUSE_SECRET_KEY` | Langfuse project secret key |
-| `LANGFUSE_HOST` | **Required for Langfuse Cloud US:** `https://us.cloud.langfuse.com`. Omit or use `https://cloud.langfuse.com` only for **EU** cloud (the SDK defaults to EU if unset, which yields **401** with US project keys). Self-hosted: your API base URL. |
-| `PORTAL_JWT_SECRET` | Random string for account portal JWTs |
+
+| Secret                | Description                                                                                                                                                                                                                                       |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `API_KEY_PEPPER`      | Long random string for HMAC API key digests                                                                                                                                                                                                       |
+| `DB_PASSWORD`         | Postgres password for the `querymesh` user                                                                                                                                                                                                        |
+| `QDRANT_API_KEY`      | Auth key for the Qdrant Cloud Run service                                                                                                                                                                                                         |
+| `QDRANT_URL`          | Internal Cloud Run URL for Qdrant (`terraform output qdrant_url`)                                                                                                                                                                                 |
+| `INGEST_TOKEN`        | Service-to-service token for `POST /ingest` — generate with `openssl rand -hex 32`                                                                                                                                                                |
+| `E2B_API_KEY`         | E2B sandbox API key                                                                                                                                                                                                                               |
+| `LANGFUSE_PUBLIC_KEY` | Langfuse project public key                                                                                                                                                                                                                       |
+| `LANGFUSE_SECRET_KEY` | Langfuse project secret key                                                                                                                                                                                                                       |
+| `LANGFUSE_HOST`       | **Required for Langfuse Cloud US:** `https://us.cloud.langfuse.com`. Omit or use `https://cloud.langfuse.com` only for **EU** cloud (the SDK defaults to EU if unset, which yields **401** with US project keys). Self-hosted: your API base URL. |
+| `PORTAL_JWT_SECRET`   | Random string for account portal JWTs                                                                                                                                                                                                             |
+
 
 ---
 
@@ -352,35 +372,37 @@ The Cloud Build pipeline runs automatically:
 
 Copy `.env.example` → `.env`. All variables are optional unless marked required.
 
-| Variable | Required | Default | Description |
-|---|---|---|---|
-| `API_KEY_PEPPER` | Yes | — | HMAC secret for API key digests |
-| `DATABASE_URL` | Yes | — | `postgresql+asyncpg://...` |
-| `REDIS_URL` | Yes | — | `redis://...` |
-| `GOOGLE_CLOUD_PROJECT` | For RAG/LLM | — | Vertex AI project; agents fall back to offline mode if unset |
-| `GOOGLE_CLOUD_LOCATION` | For RAG/LLM | `us-central1` | Vertex AI region |
-| `VERTEX_LLM_MODEL` | No | `gemini-2.5-flash` | Generative model for all agents (orchestrator, RAG, synthesizer, code, analytics) and RAGAS judge |
-| `VERTEX_EMBEDDING_MODEL` | No | `text-embedding-005` | Embedding model for ingest and query-time dense search |
-| `VERTEX_RANKING_MODEL` | No | `semantic-ranker-fast-004` | Discovery Engine reranker model |
-| `RAG_VERTEX_RERANK` | No | `true` | Enable Vertex semantic reranking (requires Discovery Engine API) |
-| `QDRANT_URL` | No | `http://localhost:6333` | Qdrant connection URL |
-| `QDRANT_API_KEY` | No | — | Qdrant auth key (required when Qdrant is deployed with auth enabled) |
-| `QDRANT_COLLECTION` | No | `gcp_docs` | Qdrant collection name for ingest and retrieval |
-| `INGESTION_GCP_DOCS_DIR` | No | `./corpus/gcp_docs` | Directory of files to index; `/app/corpus/gcp_docs` in Cloud Run |
-| `INGESTION_RECREATE_COLLECTION` | No | `false` | Drop and recreate the Qdrant collection on each ingest run |
-| `INGEST_TOKEN` | No | — | Service-to-service token accepted by `POST /ingest` in addition to user API keys |
-| `PORTAL_JWT_SECRET` | For web UI | — | Enables account portal endpoints (`/account/register`, `/account/login`, `/account/api-keys`) |
-| `BIGQUERY_PROJECT_ID` | For analytics | `GOOGLE_CLOUD_PROJECT` | BigQuery project (defaults to `GOOGLE_CLOUD_PROJECT` if unset) |
-| `BIGQUERY_DATASET` | No | `querymesh` | BigQuery dataset for the analytics agent |
-| `E2B_API_KEY` | For code sandbox | — | E2B API key; code generation still runs without it but execution is skipped |
-| `LANGFUSE_PUBLIC_KEY` | No | — | Enables Langfuse request traces |
-| `LANGFUSE_SECRET_KEY` | No | — | Langfuse secret key |
-| `LANGFUSE_HOST` | No | *(SDK default)* `https://cloud.langfuse.com` (EU cloud) | Regional API base. **Langfuse Cloud US:** set to `https://us.cloud.langfuse.com`. **EU:** leave unset or set explicitly. Self-hosted: your instance URL. |
-| `LANGFUSE_TRACING_ENVIRONMENT` | No | — | Environment tag on traces (e.g. `production`) |
-| `QUERY_RATE_LIMIT` | No | `60/minute` | Rate limit applied per API key on `POST /query` |
-| `RATE_LIMIT_STORAGE_URI` | No | `REDIS_URL` | Storage backend for rate limiter; `memory://` in tests |
-| `CORS_ALLOW_ORIGINS` | No | — | Comma-separated allowed origins or `*`; required when browser and API are on different hosts |
-| `GRAPH_MESSAGE_HISTORY_MAX` | No | `10` | Max tail messages formatted into agent prompts for multi-turn context |
+
+| Variable                        | Required         | Default                                                 | Description                                                                                                                                              |
+| ------------------------------- | ---------------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `API_KEY_PEPPER`                | Yes              | —                                                       | HMAC secret for API key digests                                                                                                                          |
+| `DATABASE_URL`                  | Yes              | —                                                       | `postgresql+asyncpg://...`                                                                                                                               |
+| `REDIS_URL`                     | Yes              | —                                                       | `redis://...`                                                                                                                                            |
+| `GOOGLE_CLOUD_PROJECT`          | For RAG/LLM      | —                                                       | Vertex AI project; agents fall back to offline mode if unset                                                                                             |
+| `GOOGLE_CLOUD_LOCATION`         | For RAG/LLM      | `us-central1`                                           | Vertex AI region                                                                                                                                         |
+| `VERTEX_LLM_MODEL`              | No               | `gemini-2.5-flash`                                      | Generative model for all agents (orchestrator, RAG, synthesizer, code, analytics) and RAGAS judge                                                        |
+| `VERTEX_EMBEDDING_MODEL`        | No               | `text-embedding-005`                                    | Embedding model for ingest and query-time dense search                                                                                                   |
+| `VERTEX_RANKING_MODEL`          | No               | `semantic-ranker-fast-004`                              | Discovery Engine reranker model                                                                                                                          |
+| `RAG_VERTEX_RERANK`             | No               | `true`                                                  | Enable Vertex semantic reranking (requires Discovery Engine API)                                                                                         |
+| `QDRANT_URL`                    | No               | `http://localhost:6333`                                 | Qdrant connection URL                                                                                                                                    |
+| `QDRANT_API_KEY`                | No               | —                                                       | Qdrant auth key (required when Qdrant is deployed with auth enabled)                                                                                     |
+| `QDRANT_COLLECTION`             | No               | `gcp_docs`                                              | Qdrant collection name for ingest and retrieval                                                                                                          |
+| `INGESTION_GCP_DOCS_DIR`        | No               | `./corpus/gcp_docs`                                     | Directory of files to index; `/app/corpus/gcp_docs` in Cloud Run                                                                                         |
+| `INGESTION_RECREATE_COLLECTION` | No               | `false`                                                 | Drop and recreate the Qdrant collection on each ingest run                                                                                               |
+| `INGEST_TOKEN`                  | No               | —                                                       | Service-to-service token accepted by `POST /ingest` in addition to user API keys                                                                         |
+| `PORTAL_JWT_SECRET`             | For web UI       | —                                                       | Enables account portal endpoints (`/account/register`, `/account/login`, `/account/api-keys`)                                                            |
+| `BIGQUERY_PROJECT_ID`           | For analytics    | `GOOGLE_CLOUD_PROJECT`                                  | BigQuery project (defaults to `GOOGLE_CLOUD_PROJECT` if unset)                                                                                           |
+| `BIGQUERY_DATASET`              | No               | `querymesh`                                             | BigQuery dataset for the analytics agent                                                                                                                 |
+| `E2B_API_KEY`                   | For code sandbox | —                                                       | E2B API key; code generation still runs without it but execution is skipped                                                                              |
+| `LANGFUSE_PUBLIC_KEY`           | No               | —                                                       | Enables Langfuse request traces                                                                                                                          |
+| `LANGFUSE_SECRET_KEY`           | No               | —                                                       | Langfuse secret key                                                                                                                                      |
+| `LANGFUSE_HOST`                 | No               | *(SDK default)* `https://cloud.langfuse.com` (EU cloud) | Regional API base. **Langfuse Cloud US:** set to `https://us.cloud.langfuse.com`. **EU:** leave unset or set explicitly. Self-hosted: your instance URL. |
+| `LANGFUSE_TRACING_ENVIRONMENT`  | No               | —                                                       | Environment tag on traces (e.g. `production`)                                                                                                            |
+| `QUERY_RATE_LIMIT`              | No               | `60/minute`                                             | Rate limit applied per API key on `POST /query`                                                                                                          |
+| `RATE_LIMIT_STORAGE_URI`        | No               | `REDIS_URL`                                             | Storage backend for rate limiter; `memory://` in tests                                                                                                   |
+| `CORS_ALLOW_ORIGINS`            | No               | —                                                       | Comma-separated allowed origins or `*`; required when browser and API are on different hosts                                                             |
+| `GRAPH_MESSAGE_HISTORY_MAX`     | No               | `10`                                                    | Max tail messages formatted into agent prompts for multi-turn context                                                                                    |
+
 
 Full reference: `.env.example`.
 
@@ -394,3 +416,4 @@ Full reference: `.env.example`.
 - `docs/cloud_logging_metrics.md` — log-based metrics and GCP alert policies
 - `infra/README.md` — Cloud Build pipeline structure and Terraform module map
 - `web/README.md` — Next.js web UI setup and deployment options
+

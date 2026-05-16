@@ -36,6 +36,7 @@ def build_langgraph_invoke_config(
     thread_id: str,
     session_id: str,
     user_id: str | None = None,
+    stream_synthesis: bool = False,
 ) -> tuple[dict[str, Any], str]:
     """
     LangGraph config for ``ainvoke`` including optional Langfuse callbacks.
@@ -50,8 +51,11 @@ def build_langgraph_invoke_config(
     }
     if user_id:
         meta["user_id"] = user_id
+    conf: dict[str, Any] = {"thread_id": thread_id}
+    if stream_synthesis:
+        conf["stream_synthesis"] = True
     base: dict[str, Any] = {
-        "configurable": {"thread_id": thread_id},
+        "configurable": conf,
         "metadata": meta,
     }
     if not langfuse_enabled():

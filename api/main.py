@@ -19,6 +19,7 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from api.rate_limit import limiter
 from api.routes import account as account_routes
+from api.routes import eval_reports as eval_reports_routes
 from api.routes import ingest as ingest_routes
 from api.routes import query as query_routes
 from api.runtime_info import build_capabilities, log_startup_capabilities
@@ -50,9 +51,7 @@ def _configure_cors(application: FastAPI) -> None:
     if not raw and not regex:
         return
     origins = (
-        ["*"]
-        if raw == "*"
-        else ([o.strip() for o in raw.split(",") if o.strip()] if raw else [])
+        ["*"] if raw == "*" else ([o.strip() for o in raw.split(",") if o.strip()] if raw else [])
     )
     if raw and raw != "*" and not origins:
         return
@@ -98,6 +97,7 @@ _configure_cors(app)
 app.include_router(account_routes.router)
 app.include_router(query_routes.router)
 app.include_router(ingest_routes.router)
+app.include_router(eval_reports_routes.router)
 
 
 @limiter.exempt
