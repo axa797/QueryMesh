@@ -29,6 +29,17 @@ Derives **`GOOGLE_OAUTH_REDIRECT_URI`** from live Cloud Run **`status.url`**; se
 bash scripts/sync_gcp_portal_secrets.sh
 ```
 
+## `park_gcp_compute.sh` / `wake_gcp_compute.sh` — save GCP compute costs
+
+Scale **api** + **qdrant** to `min-instances=0` and **stop Cloud SQL** (`querymesh-pg`). **Redis** is left running.
+
+```bash
+bash scripts/park_gcp_compute.sh
+bash scripts/wake_gcp_compute.sh   # SQL first, then Run (one script; not three manual steps)
+```
+
+Pause **`deploy`** / **`tf-apply`** Cloud Build triggers if you do not want a git push to wake services.
+
 ## `run_gcp_eval.sh` — RAGAS eval → `eval_reports` (GCP)
 
 Submits **`infra/cloudbuild-eval.yaml`**: harvest + RAGAS judge + DB persist. Run after deploy/ingest when **`/eval`** is empty.
