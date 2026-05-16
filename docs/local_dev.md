@@ -61,12 +61,27 @@ Without indexed PDFs, retrieval is empty; orchestrator/synthesizer may still run
 
 ## 6. Tests (same as CI)
 
+Start backing services first so `/health`-style checks and anything touching sessions see real infra:
+
+```bash
+docker compose -f infra/docker-compose.yml up -d postgres redis qdrant
+```
+
+CI does not start Docker for you locally; **`tests/test_health.py`** expects **postgres, redis, and qdrant** reachable when those env vars point at Compose:
+
 ```bash
 export DATABASE_URL=postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/querymesh
 export API_KEY_PEPPER=local-dev-pepper
 export REDIS_URL=redis://127.0.0.1:6379/0
+export QDRANT_URL=http://127.0.0.1:6333
 export RATE_LIMIT_STORAGE_URI=memory://
 uv run pytest -q
+```
+
+Smoke just dependencies + `/health`:
+
+```bash
+uv run pytest tests/test_health.py -v
 ```
 
 ## 7. What still uses GCP locally
