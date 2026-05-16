@@ -11,14 +11,32 @@ bash scripts/bootstrap_gcp.sh
 
 ## `verify_gcp_portal.sh` — portal / OAuth readiness (GCP)
 
-Read-only checks: required Secret Manager secrets exist and the **`api`** Cloud Run service has the expected env bindings (names only — **no secret values**). Exit `1` if anything required is missing.
+Checks Secret Manager + Cloud Run **`api`** bindings; with **`VERIFY_VALUES=1`** (default) compares redirect URI and frontend URL to production expectations (no secret values printed).
 
 ```bash
 bash scripts/verify_gcp_portal.sh
 VERIFY_HEALTH=1 bash scripts/verify_gcp_portal.sh
+EXPECTED_PORTAL_FRONTEND_BASE_URL=https://query-mesh.vercel.app bash scripts/verify_gcp_portal.sh
 ```
 
 See [infra/README.md](../infra/README.md) (OAuth go-live).
+
+## `sync_gcp_portal_secrets.sh` — sync OAuth redirect + frontend (GCP)
+
+Derives **`GOOGLE_OAUTH_REDIRECT_URI`** from live Cloud Run **`status.url`**; sets **`PORTAL_FRONTEND_BASE_URL`** from **`EXPECTED_PORTAL_FRONTEND_BASE_URL`** (default `https://query-mesh.vercel.app`). **Does not** `source .env`.
+
+```bash
+bash scripts/sync_gcp_portal_secrets.sh
+```
+
+## `run_gcp_eval.sh` — RAGAS eval → `eval_reports` (GCP)
+
+Submits **`infra/cloudbuild-eval.yaml`**: harvest + RAGAS judge + DB persist. Run after deploy/ingest when **`/eval`** is empty.
+
+```bash
+bash scripts/run_gcp_eval.sh
+EVAL_LIMIT=5 bash scripts/run_gcp_eval.sh
+```
 
 ## `check_secrets.sh` — secret scanner
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from typing import Any
+from urllib.parse import urlparse
 
 from api.settings import Settings, get_settings
 
@@ -65,6 +66,10 @@ def build_capabilities(settings: Settings) -> dict[str, Any]:
         "google_oauth_redirect_uri": bool(redir),
         "portal_frontend_base_url": bool(front),
     }
+    if redir:
+        out["oauth_redirect_origin"] = urlparse(redir).netloc or None
+    if front:
+        out["portal_frontend_origin"] = urlparse(front).netloc or None
     return out
 
 

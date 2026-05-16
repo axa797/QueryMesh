@@ -1,0 +1,87 @@
+# Run RAGAS eval against production Qdrant + Cloud SQL and persist to eval_reports.
+#
+# Manual submit (after deploy + ingest; ~10–20 min, Vertex judge LLM cost):
+#   gcloud builds submit --config infra/cloudbuild-eval.yaml --region=us-central1
+#
+# Or: bash scripts/run_gcp_eval.sh
+#
+# Requires: api image :latest (or pass _IMAGE_TAG), corpus indexed in Qdrant, Alembic 005+.
+
+substitutions:
+  _REGION: us-central1
+  _AR_REPO: querymesh
+  _SERVICE: api
+  _SQL_INSTANCE: querymesh-pg
+  _EVAL_LIMIT: "10"
+  _IMAGE_TAG: latest
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: E2_HIGHCPU_8
+
+availableSecrets:
+  secretManager:
+    - versionName: projects/$PROJECT_ID/secrets/DB_PASSWORD/versions/latest
+      env: DB_PASSWORD
+    - versionName: projects/$PROJECT_ID/secrets/QDRANT_URL/versions/latest
+      env: QDRANT_URL
+    - versionName: projects/$PROJECT_ID/secrets/QDRANT_API_KEY/versions/latest
+      env: QDRANT_API_KEY
+    - versionName: projects/$PROJECT_ID/secrets/LANGFUSE_PUBLIC_KEY/versions/latest
+      env: LANGFUSE_PUBLIC_KEY
+    - versionName: projects/$PROJECT_ID/secrets/LANGFUSE_SECRET_KEY/versions/latest
+      env: LANGFUSE_SECRET_KEY
+    - versionName: projects/$PROJECT_ID/secrets/API_KEY_PEPPER/versions/latest
+      env: API_KEY_PEPPER
+
+steps:
+  - name: ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPO}/${_SERVICE}:${_IMAGE_TAG}
+    id: ragas-persist
+    entrypoint: bash
+    secretEnv:
+      - DB_PASSWORD
+      - QDRANT_URL
+      - QDRANT_API_KEY
+      - LANGFUSE_PUBLIC_KEY
+      - LANGFUSE_SECRET_KEY
+      - API_KEY_PEPPER
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        export UV_CACHE_DIR=/tmp/uv-cache
+        mkdir -p "$${UV_CACHE_DIR}"
+        cd /app
+        uv sync --frozen --group eval
+
+        PROXY_BIN="/tmp/cloud-sql-proxy"
+        PROXY_VER="2.11.4"
+        INSTANCE_CONN="${PROJECT_ID}:${_REGION}:${_SQL_INSTANCE}"
+        PROXY_PORT="5433"
+        python3 -c "import urllib.request,sys; urllib.request.urlretrieve(sys.argv[1], sys.argv[2])" \
+          "https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v$${PROXY_VER}/cloud-sql-proxy.linux.amd64" \
+          "$${PROXY_BIN}"
+        chmod +x "$${PROXY_BIN}"
+        "$${PROXY_BIN}" --port "$${PROXY_PORT}" "$${INSTANCE_CONN}" &
+        PROXY_PID=$$!
+        sleep 4
+
+        export DATABASE_URL="postgresql+asyncpg://querymesh:$$DB_PASSWORD@127.0.0.1:$${PROXY_PORT}/querymesh"
+        export REDIS_URL="redis://127.0.0.1:6379/0"
+        export GOOGLE_CLOUD_PROJECT="${PROJECT_ID}"
+        export GOOGLE_CLOUD_LOCATION="${_REGION}"
+        export RAG_VERTEX_RERANK=true
+        export RUN_EVAL=1
+        export EVAL_PERSIST_DATABASE=1
+        export EVAL_TRIGGER=cloudbuild
+        export GITHUB_SHA="${COMMIT_SHA}"
+        export LANGFUSE_HOST=https://us.cloud.langfuse.com
+
+        echo "=== Harvest retrieval rows (limit ${_EVAL_LIMIT}) ==="
+        uv run python evals/harvest.py --categories retrieval --limit ${_EVAL_LIMIT}
+
+        echo "=== RAGAS judge + persist to eval_reports ==="
+        uv run python -m evals.ragas_eval --harvested --limit ${_EVAL_LIMIT} --persist
+
+        kill "$${PROXY_PID}" 2>/dev/null || true
+        echo "Eval complete. Browse /eval on the Vercel app (requires prior sign-in + API key)."

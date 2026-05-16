@@ -104,7 +104,7 @@ Set **`CORS_ALLOW_ORIGINS`** on the **`api`** service to include the printed **`
 
 End-to-end checklist (all must be true for **`oauth_disabled`** to disappear):
 
-1. **Secret Manager** — Non-empty versions for **`PORTAL_JWT_SECRET`** plus all four OAuth secrets: **`GOOGLE_OAUTH_CLIENT_ID`**, **`GOOGLE_OAUTH_CLIENT_SECRET`**, **`GOOGLE_OAUTH_REDIRECT_URI`**, **`PORTAL_FRONTEND_BASE_URL`**. Use **`scripts/bootstrap_gcp.sh`** prompts or `gcloud secrets versions add`.
+1. **Secret Manager** — Non-empty versions for **`PORTAL_JWT_SECRET`** plus all four OAuth secrets: **`GOOGLE_OAUTH_CLIENT_ID`**, **`GOOGLE_OAUTH_CLIENT_SECRET`**, **`GOOGLE_OAUTH_REDIRECT_URI`**, **`PORTAL_FRONTEND_BASE_URL`**. Use **`scripts/bootstrap_gcp.sh`** prompts for first-time setup.
 2. **`tf-apply`** — Run the **`tf-apply`** Cloud Build trigger (e.g. push `infra/terraform/**` to `main`) so **`reconcile-deploy`** PATCHes the **`deploy`** trigger’s **`_EXTRA_DEPLOY_ARGS`** with OAuth `--set-secrets` bindings.
 3. **Redeploy `api`** — Trigger the **`deploy`** pipeline (app code push to `main`, or manual `gcloud builds submit --config infra/cloudbuild.yaml`) so Cloud Run picks up new secret bindings.
 4. **Google Cloud Console** — In **APIs & Services → Credentials → OAuth 2.0 Client (Web)**: **Authorized redirect URIs** must include exactly  
@@ -112,12 +112,50 @@ End-to-end checklist (all must be true for **`oauth_disabled`** to disappear):
    (same string as **`GOOGLE_OAUTH_REDIRECT_URI`**). **Authorized JavaScript origins** must include your **Vercel** site origin.
 5. **Vercel** — **`NEXT_PUBLIC_QUERYMESH_URL`** = public **`api`** URL; redeploy the frontend after changing it (build-time).
 
-**Verify without printing secrets** (requires `gcloud` + `jq`, e.g. Cloud Shell):
+**Anti-pattern:** Do **not** populate production Secret Manager OAuth values by `source .env` from a laptop (local `.env` often has `PORTAL_FRONTEND_BASE_URL=http://localhost:3000` and `GOOGLE_OAUTH_REDIRECT_URI=http://127.0.0.1:8000/...`, which causes Google sign-in to succeed then redirect to localhost).
+
+**Sync derived prod secrets** (redirect URI from live Cloud Run `status.url`, frontend from env var — never reads `.env`):
 
 ```bash
-bash scripts/verify_gcp_portal.sh
-VERIFY_HEALTH=1 bash scripts/verify_gcp_portal.sh   # also GET /health
+bash scripts/sync_gcp_portal_secrets.sh
+# EXPECTED_PORTAL_FRONTEND_BASE_URL=https://query-mesh.vercel.app  # default
 ```
+
+| Setting | Local (`.env`) | Production (Secret Manager / Vercel) |
+|--------|----------------|--------------------------------------|
+| `GOOGLE_OAUTH_REDIRECT_URI` | `http://127.0.0.1:8000/account/oauth/google/callback` | `https://<api-status-url>/account/oauth/google/callback` |
+| `PORTAL_FRONTEND_BASE_URL` | `http://localhost:3000` | `https://query-mesh.vercel.app` (no trailing slash) |
+| `NEXT_PUBLIC_QUERYMESH_URL` | `http://127.0.0.1:8000` (Vercel/local build) | Public Cloud Run **`api`** URL (Vercel env, build-time) |
+| `CORS_ALLOW_ORIGINS` | `*` or `http://localhost:3000` | `https://query-mesh.vercel.app` (+ regex for `*.vercel.app` previews) |
+
+**Verify** (requires `gcloud` + `jq`, e.g. Cloud Shell):
+
+```bash
+bash scripts/verify_gcp_portal.sh              # VERIFY_VALUES=1 by default
+VERIFY_HEALTH=1 bash scripts/verify_gcp_portal.sh   # also GET /health (+ origin checks when API is deployed)
+```
+
+After API deploy, **`GET /health`** includes non-secret **`capabilities.portal_frontend_origin`** and **`oauth_redirect_origin`** for quick drift checks.
+
+### Eval reports in production (`/eval` UI)
+
+The Vercel **`/eval`** page lists rows from Postgres **`eval_reports`** via **`GET /eval-reports`**. An empty list is normal until a RAGAS run is **persisted** (Alembic revision **`005_eval_reports_table`** is applied on every **`deploy`** migrate step).
+
+**Populate prod data** (after corpus ingest; uses Vertex judge LLM — cost + ~10–20 min):
+
+```bash
+bash scripts/run_gcp_eval.sh
+# EVAL_LIMIT=10 by default; uses infra/cloudbuild-eval.yaml
+```
+
+That Cloud Build job harvests live retrieval from Qdrant, runs **`evals/ragas_eval --harvested --persist`**, and writes to Cloud SQL.
+
+**Vercel (trace links on `/eval`, not required for the list):**
+
+- **`NEXT_PUBLIC_LANGFUSE_PUBLIC_URL`** — e.g. `https://us.cloud.langfuse.com` (must match your Langfuse region; API sets `LANGFUSE_HOST` to US in deploy).
+- **`NEXT_PUBLIC_LANGFUSE_PROJECT_ID`** — optional; improves “Open Langfuse trace” when the stored trace id is bare.
+
+Redeploy the Vercel project after changing **`NEXT_PUBLIC_*`**.
 
 ### Ongoing
 
