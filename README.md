@@ -222,6 +222,14 @@ See `docs/corpus_runbook.md` for the full runbook.
 
 A Next.js frontend in `web/` provides Google sign-in, API key management, chat against `POST /query`, and eval reports at **`/eval`**. The **`/eval`** link appears in the top nav only when you are signed in (portal JWT). Requires `PORTAL_JWT_SECRET`, Google OAuth credentials, **`GOOGLE_OAUTH_REDIRECT_URI`** (API origin), and **`PORTAL_FRONTEND_BASE_URL`** (Next origin where `/oauth/callback` lives).
 
+**Production frontend — Vercel (recommended):**
+
+1. Import the repo on [vercel.com](https://vercel.com), **root directory `web`**
+2. Set **`NEXT_PUBLIC_QUERYMESH_URL`** to your **public Cloud Run API URL** (copy from Cloud Run → `api` → URL), and **`NEXT_PUBLIC_LANGFUSE_PUBLIC_URL`** as needed. Redeploy when the API URL changes — these are **build-time** values.
+3. **CORS:** Ensure the API allows your Vercel origin (`cors_allow_origins` / `tf-apply` trigger substitutions, or Secret Manager + `reconcile-deploy`). Without this, sign-in and `/health` checks from the browser fail.
+
+**Optional — Cloud Run–hosted `web`:** only if you are **not** using Vercel for production UI. Run `gcloud builds submit --config infra/cloudbuild-web.yaml` manually, or set **`QUERYMESH_ENABLE_CLOUD_RUN_WEB=1`** when running [`scripts/bootstrap_gcp.sh`](scripts/bootstrap_gcp.sh) to create a **`web-deploy`** trigger. **Default bootstrap skips** that trigger so Cloud Build does not build the frontend. If you previously created **`web-deploy`**, delete it in Cloud Build console or: `gcloud builds triggers delete web-deploy --region=us-central1 --project=YOUR_PROJECT_ID`.
+
 **Local:** run the UI **in Docker always** (`infra/docker-compose.yml` includes **`web`**). From the repo root:
 
 ```bash
@@ -235,22 +243,7 @@ docker compose -f infra/docker-compose.yml up -d
 
 See `web/README.md` — **do not rely on `npm run dev`** for day-to-day use unless you are editing the frontend.
 
-**Option A — Cloud Run (GCP credits, no Vercel):**
-
-1. Deploy the **API** first so it has a public URL.
-2. **First run:** `gcloud builds submit --config infra/cloudbuild-web.yaml` (from repo root, project set to your GCP project). This resolves the live `api` URL, builds `[web/Dockerfile](web/Dockerfile)`, pushes to Artifact Registry, and deploys service `**web`**.
-3. **Ongoing:** push changes under `web/` on `main` — the `**web-deploy`** trigger runs the same config (created by `[scripts/bootstrap_gcp.sh](scripts/bootstrap_gcp.sh)` for new setups). Existing projects can add that trigger manually to match.
-4. **CORS:** On the `**api`** Cloud Run service, set `CORS_ALLOW_ORIGINS` to your web origin (the build logs print the `web` URL). Comma-separate multiple origins if needed. Without this, the browser cannot call the API.
-
-If your `**deploy**` trigger was created before `web/**` was added to ignored files, update it so **ignored files** includes `web/`** (in addition to `infra/terraform/**`). That avoids running the full API pipeline on web-only commits.
-
-**Option B — Vercel:** (alternate to Docker-hosted web)
-
-1. Import the repo on [vercel.com](https://vercel.com), **root directory `web`**
-2. Set `NEXT_PUBLIC_QUERYMESH_URL=https://<your-cloud-run-api-url>` and **`NEXT_PUBLIC_LANGFUSE_PUBLIC_URL`** as needed.
-3. Same **CORS** rule on the API for your `*.vercel.app` origin
-
-See `web/README.md` for Compose build args and **`npm run dev`** (optional only).
+The **`deploy`** Cloud Build trigger ignores **`web/**`** so pushes that only touch the frontend do not rebuild the API (when the trigger’s ignored-files list is up to date). Frontend deploys are **Vercel** (or a manual `cloudbuild-web` run if you use Cloud Run UI).
 
 ---
 

@@ -19,6 +19,11 @@
 #
 # ONE browser step required: GitHub OAuth for Cloud Build.
 # The script prints the Cloud Console URL when you reach that step.
+#
+# Optional Cloud Build trigger "web-deploy" (Next.js → Cloud Run service "web"):
+#   Skipped by default — use Vercel for the frontend instead.
+#   To create that trigger on bootstrap: QUERYMESH_ENABLE_CLOUD_RUN_WEB=1 bash scripts/bootstrap_gcp.sh
+#   To remove an existing trigger: gcloud builds triggers delete web-deploy --region=us-central1 --project=PROJECT_ID
 
 set -euo pipefail
 
@@ -358,24 +363,28 @@ else
     ok "Created trigger: tf-apply"
   fi
 
-  # Trigger: Next.js web UI → Cloud Run (web/** only)
-  if gcloud builds triggers describe "web-deploy" \
-       --project="$PROJECT_ID" --region="$REGION" &>/dev/null; then
-    ok "Trigger 'web-deploy' already exists"
+  # Optional: Next.js on Cloud Run — most teams use Vercel; leave this off unless needed.
+  if [[ "${QUERYMESH_ENABLE_CLOUD_RUN_WEB:-}" == "1" ]]; then
+    if gcloud builds triggers describe "web-deploy" \
+         --project="$PROJECT_ID" --region="$REGION" &>/dev/null; then
+      ok "Trigger 'web-deploy' already exists"
+    else
+      gcloud builds triggers create github \
+        --project="$PROJECT_ID" \
+        --region="$REGION" \
+        --name="web-deploy" \
+        --repo-owner="$GH_OWNER" \
+        --repo-name="$GH_REPO" \
+        --branch-pattern="^main$" \
+        --build-config="infra/cloudbuild-web.yaml" \
+        --included-files="web/**" \
+        --included-files="infra/cloudbuild-web.yaml" \
+        --service-account="$TRIGGER_SA" \
+        --description="Build and deploy Next.js portal to Cloud Run when web/** changes"
+      ok "Created trigger: web-deploy"
+    fi
   else
-    gcloud builds triggers create github \
-      --project="$PROJECT_ID" \
-      --region="$REGION" \
-      --name="web-deploy" \
-      --repo-owner="$GH_OWNER" \
-      --repo-name="$GH_REPO" \
-      --branch-pattern="^main$" \
-      --build-config="infra/cloudbuild-web.yaml" \
-      --included-files="web/**" \
-      --included-files="infra/cloudbuild-web.yaml" \
-      --service-account="$TRIGGER_SA" \
-      --description="Build and deploy Next.js portal to Cloud Run when web/** changes"
-    ok "Created trigger: web-deploy"
+    info "Skipping 'web-deploy' trigger (frontend on Vercel by default). Set QUERYMESH_ENABLE_CLOUD_RUN_WEB=1 to create it."
   fi
 fi
 
@@ -392,9 +401,9 @@ echo ""
 echo "  2. Push any app code change to main"
 echo "     → Cloud Build 'deploy' trigger fires → build + migrate + deploy + ingest"
 echo ""
-echo "  2b. Push a change under web/"
-echo "      → Cloud Build 'web-deploy' builds Next.js and deploys to Cloud Run service 'web'"
-echo "      (Ensure the API is deployed first so the build can resolve its public URL.)"
+echo "  2b. (Optional) Cloud Run UI: set QUERYMESH_ENABLE_CLOUD_RUN_WEB=1 and re-run bootstrap,"
+echo "      or run: gcloud builds submit --config infra/cloudbuild-web.yaml"
+echo "      Skip if you use Vercel — delete stale trigger: gcloud builds triggers delete web-deploy --region=${REGION} --project=${PROJECT_ID}"
 echo ""
 echo "  3. Monitor at:"
 echo "     https://console.cloud.google.com/cloud-build/builds?project=${PROJECT_ID}"

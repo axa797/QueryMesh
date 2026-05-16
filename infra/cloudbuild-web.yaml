@@ -6,7 +6,8 @@
 # Manual:
 #   gcloud builds submit --config infra/cloudbuild-web.yaml
 #
-# Trigger: push to main under web/** (see scripts/bootstrap_gcp.sh).
+# Optional Cloud Build trigger "web-deploy": not created by default (Vercel hosts the UI).
+# Set QUERYMESH_ENABLE_CLOUD_RUN_WEB=1 when running scripts/bootstrap_gcp.sh to create it.
 
 substitutions:
   _REGION: us-central1

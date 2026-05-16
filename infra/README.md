@@ -72,17 +72,15 @@ Push any app code change to `main`. The `deploy` Cloud Build trigger fires and r
 5. `gcloud run deploy api` (with the flag blob reconciled by `tf-apply`)
 6. `POST /ingest` to reload the corpus into Qdrant (when conditions match)
 
-### Step 3b — Deploy Web UI to Cloud Run (optional)
+### Step 3b — Deploy Web UI to Cloud Run (optional, rare)
 
-After the API is live, run once from repo root:
+Use this **only** if you host the Next app on GCP instead of Vercel. Default **`bootstrap_gcp.sh`** does **not** create a **`web-deploy`** trigger (`QUERYMESH_ENABLE_CLOUD_RUN_WEB=1` opt-in). Run once from repo root:
 
 ```bash
 gcloud builds submit --config infra/cloudbuild-web.yaml
 ```
 
-Or push under `web/` on `main` once the **`web-deploy`** trigger exists ([bootstrap_gcp.sh](../scripts/bootstrap_gcp.sh) creates it for new projects). The build resolves the public **`api`** URL and bakes it into the Next.js bundle.
-
-Set **`CORS_ALLOW_ORIGINS`** on the **`api`** service to include the printed **`web`** URL.
+Set **`CORS_ALLOW_ORIGINS`** on the **`api`** service to include the printed **`web`** URL when using Cloud Run UI.
 
 ### CORS from Terraform + Google OAuth secrets
 
@@ -106,8 +104,9 @@ Set **`CORS_ALLOW_ORIGINS`** on the **`api`** service to include the printed **`
 
 | What changed | What to push | Which trigger fires |
 |---|---|---|
-| App code (not `web/` only) | Changes outside `infra/terraform/**` and `web/**` | `deploy` |
-| Web UI only | `web/**` | `web-deploy` |
+| App code (API / Python) | Changes outside `infra/terraform/**` and (usually) `web/**` | `deploy` |
+| Web UI only (Vercel) | `web/**` | **Vercel** (not Cloud Build — remove `web-deploy` trigger if stale) |
+| Web UI on Cloud Run (optional) | `web/**` | Manual `cloudbuild-web` or opt-in `web-deploy` (`QUERYMESH_ENABLE_CLOUD_RUN_WEB=1` at bootstrap) |
 | Infrastructure | `infra/terraform/**` | `tf-apply` |
 | PR opened / updated | Any branch | GitHub Actions (lint + pytest) |
 
