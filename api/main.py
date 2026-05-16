@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
@@ -114,7 +115,7 @@ async def health() -> dict:
         api_key=settings.qdrant_api_key,
         timeout=settings.qdrant_timeout_seconds,
     )
-    return {
+    payload: dict = {
         "status": "ok",
         "services": {
             "qdrant": qdrant_ok,
@@ -123,3 +124,11 @@ async def health() -> dict:
         },
         "capabilities": build_capabilities(settings),
     }
+    # Cloud Run–injected env (used to confirm which revision serves traffic vs OAuth/Swagger drift)
+    revision = os.environ.get("K_REVISION")
+    service = os.environ.get("K_SERVICE")
+    if revision:
+        payload["cloud_run_revision"] = revision
+    if service:
+        payload["cloud_run_service"] = service
+    return payload
