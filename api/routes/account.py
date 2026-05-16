@@ -1,40 +1,41 @@
-"""Browser-friendly signup/login and API key lifecycle (spec §8 API keys unchanged for /query)."""
+"""Google OAuth signup/login and API key lifecycle (portal JWT unchanged for /chat)."""
 
 from __future__ import annotations
 
 import secrets
+import urllib.parse
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException
+import httpx
+from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.responses import RedirectResponse
 from memory.session import session_scope
 
 from api.account_portal import (
-    DuplicatePortalEmailError,
-    fetch_login_row,
     insert_api_key_row,
     list_api_keys_for_user,
     revoke_api_key,
-    safe_insert_portal_user,
+    upsert_user_from_google,
 )
 from api.auth import digest_api_key
 from api.deps import PortalUserId
-from api.passwords import hash_password, verify_password
-from api.portal_jwt import issue_portal_token
-from api.schemas.account import (
-    ApiKeyCreateResponse,
-    ApiKeyListItem,
-    LoginRequest,
-    PortalTokenResponse,
-    RegisterRequest,
+from api.google_oauth import (
+    email_verified_claim,
+    exchange_google_authorization_code,
+    google_authorization_url,
+    verify_google_id_token,
 )
-from api.settings import get_settings
+from api.portal_jwt import issue_portal_token
+from api.schemas.account import ApiKeyCreateResponse, ApiKeyListItem
+from api.settings import Settings, get_settings
 
 router = APIRouter(prefix="/account", tags=["account"])
 
+OAUTH_STATE_COOKIE = "portal_oauth_state"
+
 
 def _portal_secret_or_503() -> str:
-    settings = get_settings()
-    secret = (settings.portal_jwt_secret or "").strip()
+    secret = (get_settings().portal_jwt_secret or "").strip()
     if not secret:
         raise HTTPException(
             status_code=503,
@@ -46,50 +47,152 @@ def _portal_secret_or_503() -> str:
     return secret
 
 
-@router.post("/register", response_model=PortalTokenResponse, status_code=201)
-async def register_account(body: RegisterRequest) -> PortalTokenResponse:
-    secret = _portal_secret_or_503()
-    settings = get_settings()
-    email = body.email.strip().lower()
-    ph = hash_password(body.password)
-    try:
-        async with session_scope() as session:
-            uid = await safe_insert_portal_user(session, email, ph)
-    except DuplicatePortalEmailError:
+def _google_oauth_config_or_503() -> tuple[str, str, str, str]:
+    """Returns (client_id, client_secret, redirect_uri, portal_frontend_base_url)."""
+    _portal_secret_or_503()
+    s = get_settings()
+    cid = (s.google_oauth_client_id or "").strip()
+    csec = (s.google_oauth_client_secret or "").strip()
+    redir = (s.google_oauth_redirect_uri or "").strip()
+    front = (s.portal_frontend_base_url or "").strip()
+    if not cid or not csec or not redir or not front:
         raise HTTPException(
-            status_code=409,
-            detail={"error": "email_taken", "message": "Email already registered."},
-        ) from None
-    tok = issue_portal_token(
-        user_id=uid,
-        secret=secret,
-        ttl_hours=settings.portal_jwt_ttl_hours,
-    )
-    return PortalTokenResponse(access_token=tok, user_id=uid)
-
-
-@router.post("/login", response_model=PortalTokenResponse)
-async def login_account(body: LoginRequest) -> PortalTokenResponse:
-    secret = _portal_secret_or_503()
-    settings = get_settings()
-    email = body.email.strip().lower()
-    async with session_scope() as session:
-        row = await fetch_login_row(session, email)
-    if row is None or not verify_password(body.password, row[1]):
-        raise HTTPException(
-            status_code=401,
+            status_code=503,
             detail={
-                "error": "invalid_credentials",
-                "message": "Invalid email or password.",
+                "error": "oauth_disabled",
+                "message": (
+                    "Google OAuth portal is not configured. Set GOOGLE_OAUTH_CLIENT_ID, "
+                    "GOOGLE_OAUTH_CLIENT_SECRET, GOOGLE_OAUTH_REDIRECT_URI, and "
+                    "PORTAL_FRONTEND_BASE_URL."
+                ),
             },
         )
-    uid = row[0]
-    tok = issue_portal_token(
-        user_id=uid,
-        secret=secret,
-        ttl_hours=settings.portal_jwt_ttl_hours,
+    return cid, csec, redir, front
+
+
+def _oauth_callback_redirect(settings: Settings, fragment: str) -> RedirectResponse:
+    base = (settings.portal_frontend_base_url or "").rstrip("/")
+    target = urllib.parse.urljoin(base + "/", "oauth/callback")
+    return RedirectResponse(f"{target}#{fragment}", status_code=302)
+
+
+def _oauth_cookie_secure(redirect_uri: str) -> bool:
+    return redirect_uri.lower().startswith("https://")
+
+
+@router.get("/oauth/google/start")
+async def oauth_google_start() -> RedirectResponse:
+    client_id, _, redirect_uri, _ = _google_oauth_config_or_503()
+    state = secrets.token_urlsafe(32)
+    authorize = google_authorization_url(
+        client_id=client_id,
+        redirect_uri=redirect_uri,
+        state=state,
     )
-    return PortalTokenResponse(access_token=tok, user_id=uid)
+    resp = RedirectResponse(authorize, status_code=302)
+    resp.set_cookie(
+        key=OAUTH_STATE_COOKIE,
+        value=state,
+        httponly=True,
+        max_age=600,
+        samesite="lax",
+        secure=_oauth_cookie_secure(redirect_uri),
+        path="/account/oauth/google",
+    )
+    return resp
+
+
+@router.get("/oauth/google/callback")
+async def oauth_google_callback(
+    request: Request,
+    code: str | None = Query(None),
+    state: str | None = Query(None),
+    error: str | None = Query(None),
+    error_description: str | None = Query(None),
+) -> RedirectResponse:
+    client_id, client_secret, redirect_uri, _ = _google_oauth_config_or_503()
+    settings = get_settings()
+
+    def _frag_error(message: str) -> RedirectResponse:
+        frag = urllib.parse.urlencode({"error": "oauth_failed", "error_description": message})
+        resp = _oauth_callback_redirect(settings, frag)
+        resp.delete_cookie(key=OAUTH_STATE_COOKIE, path="/account/oauth/google")
+        return resp
+
+    if error:
+        msg = urllib.parse.unquote(error_description or error or "access_denied")
+        return _frag_error(msg)
+
+    ck = request.cookies.get(OAUTH_STATE_COOKIE)
+    if not state or not ck:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "oauth_state_missing",
+                "message": "Missing OAuth state or cookie (start login from Continue with Google).",
+            },
+        )
+    if not secrets.compare_digest(state, ck):
+        raise HTTPException(
+            status_code=400,
+            detail={"error": "oauth_state_invalid", "message": "OAuth state mismatch (CSRF)."},
+        )
+
+    if not code:
+        raise HTTPException(status_code=400, detail={"error": "oauth_code_missing"})
+
+    try:
+        tokens = await exchange_google_authorization_code(
+            client_id=client_id,
+            client_secret=client_secret,
+            redirect_uri=redirect_uri,
+            code=code,
+        )
+    except httpx.HTTPStatusError as exc:
+        return _frag_error(f"token exchange failed: {exc.response.status_code}")
+    except Exception as exc:  # noqa: BLE001 — user-facing SPA redirect
+        return _frag_error(f"token exchange failed: {exc!s}")
+
+    id_raw = tokens.get("id_token")
+    if not isinstance(id_raw, str) or not id_raw:
+        return _frag_error("missing id_token in token response")
+
+    try:
+        claims = verify_google_id_token(raw_token=id_raw, audience=client_id)
+    except Exception:
+        return _frag_error("invalid id_token")
+
+    if not email_verified_claim(claims):
+        return _frag_error("Google email is not verified")
+
+    sub = claims.get("sub")
+    email = claims.get("email")
+    if not isinstance(sub, str) or not sub:
+        return _frag_error("missing sub in id_token")
+    if not isinstance(email, str) or not email.strip():
+        return _frag_error("missing email in id_token")
+
+    secret = _portal_secret_or_503()
+    try:
+        async with session_scope() as session:
+            uid = await upsert_user_from_google(session, email=email, google_sub=sub)
+            tok = issue_portal_token(
+                user_id=uid,
+                secret=secret,
+                ttl_hours=get_settings().portal_jwt_ttl_hours,
+            )
+    except Exception as exc:
+        return _frag_error(f"account error: {exc!s}")
+
+    frag = urllib.parse.urlencode(
+        {
+            "access_token": tok,
+            "token_type": "bearer",
+        },
+    )
+    ok = _oauth_callback_redirect(settings, frag)
+    ok.delete_cookie(key=OAUTH_STATE_COOKIE, path="/account/oauth/google")
+    return ok
 
 
 @router.post("/api-keys", response_model=ApiKeyCreateResponse)

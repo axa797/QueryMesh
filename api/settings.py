@@ -28,9 +28,17 @@ class Settings(BaseSettings):
     api_key_pepper: str
     redis_url: str
 
-    # Optional: POST /account/register|login + API key minting (browser/session JWT).
+    # Optional: Google OAuth portal + API key minting (browser/session JWT HS256).
     portal_jwt_secret: str | None = None
     portal_jwt_ttl_hours: int = 168
+
+    google_oauth_client_id: str | None = None
+    google_oauth_client_secret: str | None = None
+    # Must match an authorized redirect URI in Google Cloud (API origin), e.g.
+    # http://127.0.0.1:8000/account/oauth/google/callback
+    google_oauth_redirect_uri: str | None = None
+    # Next/Vercel origin for post-login redirect (fragment bears portal JWT).
+    portal_frontend_base_url: str | None = None
 
     # GCP / RAG (§9, §15.8)
     google_cloud_project: str | None = None
@@ -120,6 +128,10 @@ class Settings(BaseSettings):
         "e2b_api_key",
         "e2b_template_id",
         "portal_jwt_secret",
+        "google_oauth_client_id",
+        "google_oauth_client_secret",
+        "google_oauth_redirect_uri",
+        "portal_frontend_base_url",
         "ingest_token",
         "cors_allow_origin_regex",
         "langfuse_host",

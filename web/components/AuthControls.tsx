@@ -17,8 +17,9 @@ export function AuthControls() {
   if (!signedIn) {
     return (
       <nav className="flex flex-wrap gap-4 text-sm text-zinc-400">
-        <Link href="/register" className="hover:text-zinc-200">Register</Link>
-        <Link href="/login" className="hover:text-zinc-200">Login</Link>
+        <Link href="/login" className="hover:text-zinc-200">
+          Sign in
+        </Link>
       </nav>
     );
   }

@@ -5,45 +5,68 @@ from __future__ import annotations
 from uuid import UUID
 
 from sqlalchemy import text
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
-async def insert_portal_user(session: AsyncSession, email: str, password_hash: str) -> UUID:
-    res = await session.execute(
-        text(
-            """
-            INSERT INTO users (email, password_hash)
-            VALUES (:email, :ph)
-            RETURNING id
-            """
-        ),
-        {"email": email, "ph": password_hash},
-    )
-    return res.scalar_one()
-
-
-async def fetch_login_row(
+async def upsert_user_from_google(
     session: AsyncSession,
+    *,
     email: str,
-) -> tuple[UUID, str] | None:
+    google_sub: str,
+) -> UUID:
+    """Create or attach a portal user from verified Google OAuth claims.
+
+    - Match by google_sub → return existing id.
+    - Else match by lower(email) → set google_sub and clear password_hash.
+    - Else INSERT with password_hash NULL.
+    """
+    email_l = email.strip().lower()
+
+    row = (
+        await session.execute(
+            text("SELECT id::text FROM users WHERE google_sub = :gs"),
+            {"gs": google_sub},
+        )
+    ).mappings().first()
+    if row is not None:
+        return UUID(str(row["id"]))
+
+    row2 = (
+        await session.execute(
+            text(
+                """
+                SELECT id::text FROM users
+                WHERE email IS NOT NULL AND lower(trim(email)) = :em
+                """
+            ),
+            {"em": email_l},
+        )
+    ).mappings().first()
+    if row2 is not None:
+        uid = UUID(str(row2["id"]))
+        await session.execute(
+            text(
+                """
+                UPDATE users
+                SET google_sub = :gs, password_hash = NULL
+                WHERE id = CAST(:uid AS uuid)
+                """
+            ),
+            {"gs": google_sub, "uid": str(uid)},
+        )
+        return uid
+
     res = await session.execute(
         text(
             """
-            SELECT id::text, password_hash
-            FROM users
-            WHERE email = :email AND password_hash IS NOT NULL
+            INSERT INTO users (email, google_sub, password_hash)
+            VALUES (:em, :gs, NULL)
+            RETURNING id::text
             """
         ),
-        {"email": email},
+        {"em": email_l, "gs": google_sub},
     )
-    row = res.mappings().first()
-    if row is None:
-        return None
-    ph = row["password_hash"]
-    if not ph:
-        return None
-    return UUID(row["id"]), str(ph)
+    return UUID(str(res.scalar_one()))
 
 
 async def insert_api_key_row(
@@ -106,21 +129,3 @@ async def revoke_api_key(
         {"kid": key_id, "uid": user_id},
     )
     return res.first() is not None
-
-
-class DuplicatePortalEmailError(Exception):
-    """Email already registered."""
-
-
-async def safe_insert_portal_user(
-    session: AsyncSession,
-    email: str,
-    password_hash: str,
-) -> UUID:
-    try:
-        return await insert_portal_user(session, email, password_hash)
-    except IntegrityError as e:
-        orig = getattr(e, "orig", None)
-        if getattr(orig, "pgcode", None) == "23505":
-            raise DuplicatePortalEmailError from e
-        raise

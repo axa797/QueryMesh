@@ -1,21 +1,11 @@
-"""Request/response models for portal signup and API key management."""
+"""Response models for portal JWT (fragment callback) and API key APIs."""
 
 from __future__ import annotations
 
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, Field
-
-
-class RegisterRequest(BaseModel):
-    email: EmailStr
-    password: str = Field(min_length=8, max_length=256)
-
-
-class LoginRequest(BaseModel):
-    email: EmailStr
-    password: str = Field(min_length=1, max_length=256)
+from pydantic import BaseModel
 
 
 class PortalTokenResponse(BaseModel):

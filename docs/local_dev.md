@@ -25,7 +25,9 @@ PYTHONPATH=. uv run --env-file .env python scripts/mint_api_key.py
 
 Save the printed API key; it is shown once.
 
-**Optional — browser signup (same DB tables):** set **`PORTAL_JWT_SECRET`** in `.env` (see `.env.example`). Then use `POST /account/register` and `POST /account/login` for a portal JWT, and `POST /account/api-keys` (Bearer that JWT) to mint a raw key for **`POST /query`**.
+**Optional — browser signup (same DB tables):** set **`PORTAL_JWT_SECRET`**, **`PORTAL_FRONTEND_BASE_URL`**, **`GOOGLE_OAUTH_CLIENT_ID`**, **`GOOGLE_OAUTH_CLIENT_SECRET`**, and **`GOOGLE_OAUTH_REDIRECT_URI`** in `.env` (see `.env.example`). Configure a Google OAuth Web client whose authorized redirect URI matches **`GOOGLE_OAUTH_REDIRECT_URI`** (for local API host: `http://127.0.0.1:8000/account/oauth/google/callback` or matching `localhost`). The Next app uses **Continue with Google** (full-page navigation to the API); after OAuth it receives the portal JWT in the URL fragment and can call **`POST /account/api-keys`** (Bearer that JWT) to mint a raw key for **`POST /query`**.
+
+Legacy password-only rows in `users` are linked automatically when the verified Google **`email`** matches; **`password_hash`** is cleared on first Google login for that row.
 
 ## 3. Run the API
 
@@ -47,7 +49,7 @@ All of `postgres`, `redis`, and `qdrant` should be `true` once compose is up. If
 2. Set `BASE_URL` to `http://127.0.0.1:8000` and `API_KEY` to the key from `mint_api_key.py`.
 3. Ensure the API process has `CORS_ALLOW_ORIGINS=*` (or your page origin) in `.env`.
 
-**Alternatively — Next.js UI (Docker — default):** `docker compose -f infra/docker-compose.yml up -d` from the repo root (see [`web/README.md`](../web/README.md)) → [http://localhost:3000](http://localhost:3000). Use `docker compose ... up -d --build web` after editing **`infra/docker-compose.yml`** `web.build.args` or `web/Dockerfile`. **`NEXT_PUBLIC_*`** values are those **build args**. The API needs **`PORTAL_JWT_SECRET`** and `CORS_ALLOW_ORIGINS` including `http://localhost:3000` (or `*` locally).
+**Alternatively — Next.js UI (Docker — default):** `docker compose -f infra/docker-compose.yml up -d` from the repo root (see [`web/README.md`](../web/README.md)) → [http://localhost:3000](http://localhost:3000). Use `docker compose ... up -d --build web` after editing **`infra/docker-compose.yml`** `web.build.args` or `web/Dockerfile`. **`NEXT_PUBLIC_QUERYMESH_URL`** must point at the browser-reachable API. The API needs **`PORTAL_JWT_SECRET`**, the Google OAuth vars, **`PORTAL_FRONTEND_BASE_URL`** matching how you open Next (often `http://localhost:3000`), and **`CORS_ALLOW_ORIGINS`** including that origin (or `*` locally).
 
 **Optional:** `cd web && npm run dev` only if actively editing frontend without rebuilding the image.
 

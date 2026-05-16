@@ -62,7 +62,7 @@ Orchestrator  (Gemini, temp=0 — classifies into retrieval / code_generation / 
 | Eval snapshots     | Postgres `eval_reports`           | Persist with `EVAL_PERSIST_DATABASE=1` or `--persist` (Alembic `005_eval_reports_table`); **`GET /eval-reports`**; browser UI at **`/eval`** (`NEXT_PUBLIC_LANGFUSE_PUBLIC_URL` for Langfuse trace links) |
 | Code sandbox       | E2B                               | `E2B_API_KEY`; isolated Python execution, 15 s wall, 64 KiB output cap, no GCP creds in sandbox |
 | Analytics          | BigQuery                          | `BIGQUERY_PROJECT_ID`, `BIGQUERY_DATASET`; read-only SQL, SELECT/WITH only                      |
-| Account portal     | FastAPI + JWT                     | `PORTAL_JWT_SECRET`; enables browser signup/login + API key minting                             |
+| Account portal     | FastAPI + Google OAuth + JWT      | `PORTAL_JWT_SECRET` + Google OAuth client + `PORTAL_FRONTEND_BASE_URL`; API key minting unchanged |
 | CORS               | FastAPI middleware                | `CORS_ALLOW_ORIGINS` (e.g. `https://your-web-app.vercel.app`)                                   |
 
 
@@ -211,7 +211,7 @@ See `docs/corpus_runbook.md` for the full runbook.
 
 ## Web UI
 
-A Next.js frontend in `web/` provides signup/login, API key management, chat against `POST /query`, and **`/eval`**. Requires `PORTAL_JWT_SECRET` in the API environment.
+A Next.js frontend in `web/` provides Google sign-in, API key management, chat against `POST /query`, and **`/eval`**. Requires `PORTAL_JWT_SECRET`, Google OAuth credentials, **`GOOGLE_OAUTH_REDIRECT_URI`** (API origin), and **`PORTAL_FRONTEND_BASE_URL`** (Next origin where `/oauth/callback` lives).
 
 **Local:** run the UI **in Docker always** (`infra/docker-compose.yml` includes **`web`**). From the repo root:
 
@@ -363,7 +363,8 @@ The Cloud Build pipeline runs automatically:
 | `LANGFUSE_PUBLIC_KEY` | Langfuse project public key                                                                                                                                                                                                                       |
 | `LANGFUSE_SECRET_KEY` | Langfuse project secret key                                                                                                                                                                                                                       |
 | `LANGFUSE_HOST`       | **Required for Langfuse Cloud US:** `https://us.cloud.langfuse.com`. Omit or use `https://cloud.langfuse.com` only for **EU** cloud (the SDK defaults to EU if unset, which yields **401** with US project keys). Self-hosted: your API base URL. |
-| `PORTAL_JWT_SECRET`   | Random string for account portal JWTs                                                                                                                                                                                                             |
+| `PORTAL_JWT_SECRET`   | HS256 signing key for portal session JWT after Google OAuth                                                                                                                                                                                        |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | Google OAuth Web client secret (authorization code exchange on the API only)                                                                                                                                                                |
 
 
 ---
@@ -390,7 +391,11 @@ Copy `.env.example` → `.env`. All variables are optional unless marked require
 | `INGESTION_GCP_DOCS_DIR`        | No               | `./corpus/gcp_docs`                                     | Directory of files to index; `/app/corpus/gcp_docs` in Cloud Run                                                                                         |
 | `INGESTION_RECREATE_COLLECTION` | No               | `false`                                                 | Drop and recreate the Qdrant collection on each ingest run                                                                                               |
 | `INGEST_TOKEN`                  | No               | —                                                       | Service-to-service token accepted by `POST /ingest` in addition to user API keys                                                                         |
-| `PORTAL_JWT_SECRET`             | For web UI       | —                                                       | Enables account portal endpoints (`/account/register`, `/account/login`, `/account/api-keys`)                                                            |
+| `PORTAL_JWT_SECRET`             | For web UI       | —                                                       | Portal session JWT HS256 signing; required with OAuth + `/account/api-keys`                                                                              |
+| `PORTAL_FRONTEND_BASE_URL`      | For web UI       | —                                                       | Next origin for post-OAuth redirect to `/oauth/callback` (JWT in URL fragment).                                                                           |
+| `GOOGLE_OAUTH_CLIENT_ID`        | For web UI       | —                                                       | Google OAuth Web client ID (Google Cloud Console).                                                                                                      |
+| `GOOGLE_OAUTH_CLIENT_SECRET`    | For web UI       | —                                                       | Google OAuth client secret (token exchange stays on API).                                                                                                |
+| `GOOGLE_OAUTH_REDIRECT_URI`     | For web UI       | —                                                       | Must match authorized redirect URI exactly, e.g. `https://<api-host>/account/oauth/google/callback`.                                                    |
 | `BIGQUERY_PROJECT_ID`           | For analytics    | `GOOGLE_CLOUD_PROJECT`                                  | BigQuery project (defaults to `GOOGLE_CLOUD_PROJECT` if unset)                                                                                           |
 | `BIGQUERY_DATASET`              | No               | `querymesh`                                             | BigQuery dataset for the analytics agent                                                                                                                 |
 | `E2B_API_KEY`                   | For code sandbox | —                                                       | E2B API key; code generation still runs without it but execution is skipped                                                                              |

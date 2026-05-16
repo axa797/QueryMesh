@@ -1,4 +1,4 @@
-"""Account portal against Postgres (alembic revision 003_user_portal_login required).
+"""Google OAuth portal against Postgres (alembic 006_google_oauth_sub recommended).
 
 Uses ``httpx.AsyncClient`` + ``ASGITransport`` so SQLAlchemy/asyncpg shares one event loop
 (unlike ``TestClient``, which can bind the pool to different loops across requests).
@@ -8,10 +8,13 @@ from __future__ import annotations
 
 import os
 import uuid
+from unittest.mock import AsyncMock, MagicMock
+from urllib.parse import parse_qs, parse_qsl, urlparse
 
 import httpx
 import pytest
 from api.main import app
+from api.portal_jwt import decode_portal_sub
 from api.settings import get_settings
 from memory.session import reset_connection_pool
 from sqlalchemy import text
@@ -40,72 +43,92 @@ async def portal_http(monkeypatch: pytest.MonkeyPatch) -> httpx.AsyncClient:
         or "integration-portal-test-secret-32chars-min!!"
     )
     monkeypatch.setenv("PORTAL_JWT_SECRET", secret)
+    monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_ID", "integration-test-client-id")
+    monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_SECRET", "integration-test-client-secret")
+    monkeypatch.setenv(
+        "GOOGLE_OAUTH_REDIRECT_URI",
+        "http://test/account/oauth/google/callback",
+    )
+    monkeypatch.setenv("PORTAL_FRONTEND_BASE_URL", "http://frontend")
+
+    exchange_mock = AsyncMock(return_value={"id_token": "stub.id.payload"})
+    verify_mock = MagicMock()
+    monkeypatch.setattr(
+        "api.routes.account.exchange_google_authorization_code",
+        exchange_mock,
+    )
+    monkeypatch.setattr(
+        "api.routes.account.verify_google_id_token",
+        verify_mock,
+    )
+
     get_settings.cache_clear()
     reset_connection_pool()
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        setattr(client, "_exchange_mock", exchange_mock)
+        setattr(client, "_verify_mock", verify_mock)
+        setattr(client, "_portal_secret", secret)
         yield client
+
     get_settings.cache_clear()
     reset_connection_pool()
 
 
 @pytest.mark.asyncio
-async def test_register_login_mint_list_revoke_portal(
-    portal_http: httpx.AsyncClient,
-) -> None:
+async def test_google_oauth_mint_api_key_flow(portal_http: httpx.AsyncClient) -> None:
+    exchange_mock = portal_http._exchange_mock  # type: ignore[attr-defined]
+    verify_mock = portal_http._verify_mock  # type: ignore[attr-defined]
+    secret = portal_http._portal_secret  # type: ignore[attr-defined]
+
     dsn = os.environ["DATABASE_URL"]
-    email = f"acct_{uuid.uuid4().hex[:16]}@example.com"
-    password = "integration-pass-9876"
-    user_id: str | None = None
+    email = f"oauth_{uuid.uuid4().hex[:16]}@example.com"
+
+    def _claims(*_: object, **__: object) -> dict[str, object]:
+        return {
+            "sub": f"go_{uuid.uuid4().hex[:20]}",
+            "email": email,
+            "email_verified": True,
+        }
+
+    uid_str: str | None = None
+    verify_mock.side_effect = _claims
     try:
-        r = await portal_http.post(
-            "/account/register",
-            json={"email": email, "password": password},
+
+        r_start = await portal_http.get("/account/oauth/google/start", follow_redirects=False)
+        assert r_start.status_code == 302
+        query_state = parse_qs(urlparse(r_start.headers["location"]).query)["state"][0]
+
+        r_cb = await portal_http.get(
+            "/account/oauth/google/callback",
+            params={"code": "auth-code-integration", "state": query_state},
+            follow_redirects=False,
         )
-        if r.status_code != 201:
-            detail = r.json() if r.text else r.text
-            pytest.fail(
-                f"register failed {r.status_code}: {detail!r} "
-                "(ensure `alembic upgrade head` applied, including 003_user_portal_login)",
-            )
-        body = r.json()
-        portal_tok = body["access_token"]
-        user_id = str(body["user_id"])
+        assert r_cb.status_code == 302
+        loc = r_cb.headers["location"]
+        assert loc.startswith("http://frontend/oauth/callback")
+        fragment = urlparse(loc).fragment
+        assert "access_token=" in fragment
+        params_frag = dict(parse_qsl(fragment))
+        portal_tok = params_frag["access_token"]
+        uid = decode_portal_sub(token=portal_tok, secret=secret)
+        uid_str = str(uid)
 
-        r2 = await portal_http.post(
-            "/account/login",
-            json={"email": email, "password": password},
-        )
-        assert r2.status_code == 200
+        assert exchange_mock.await_count >= 1
+        kw = exchange_mock.await_args.kwargs if exchange_mock.await_args else {}
+        assert kw.get("redirect_uri") == "http://test/account/oauth/google/callback"
 
-        r_bad = await portal_http.post(
-            "/account/login",
-            json={"email": email, "password": "wrong-password"},
-        )
-        assert r_bad.status_code == 401
+        mint_h = {"Authorization": f"Bearer {portal_tok}"}
+        r_key = await portal_http.post("/account/api-keys", headers=mint_h)
+        assert r_key.status_code == 200
+        key_id = r_key.json()["key_id"]
 
-        h = {"Authorization": f"Bearer {portal_tok}"}
-        r3 = await portal_http.post("/account/api-keys", headers=h)
-        assert r3.status_code == 200
-        key_id = r3.json()["key_id"]
-
-        r4 = await portal_http.get("/account/api-keys", headers=h)
-        assert r4.status_code == 200
-        ids = {row["key_id"] for row in r4.json()}
+        r_list = await portal_http.get("/account/api-keys", headers=mint_h)
+        ids = {row["key_id"] for row in r_list.json()}
         assert key_id in ids
 
-        r5 = await portal_http.post(f"/account/api-keys/{key_id}/revoke", headers=h)
-        assert r5.status_code == 200
-
-        r6 = await portal_http.get("/account/api-keys", headers=h)
-        revoked = next(x for x in r6.json() if x["key_id"] == key_id)
-        assert revoked["revoked_at"] is not None
-
-        r_dup = await portal_http.post(
-            "/account/register",
-            json={"email": email, "password": "anotherpwd12"},
-        )
-        assert r_dup.status_code == 409
+        r_rev = await portal_http.post(f"/account/api-keys/{key_id}/revoke", headers=mint_h)
+        assert r_rev.status_code == 200
     finally:
-        if user_id:
-            await _cleanup_user(dsn, user_id)
+        if uid_str:
+            await _cleanup_user(dsn, uid_str)

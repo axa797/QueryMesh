@@ -1,6 +1,6 @@
 # QueryMesh web UI (Next.js)
 
-Simple TypeScript UI for portal signup/login, API key minting, chat (`POST /query`), and eval reports at **`/eval`** (`GET /eval-reports`).
+Simple TypeScript UI for Google-backed portal sign-in, API key minting, chat (`POST /query`), and eval reports at **`/eval`** (`GET /eval-reports`).
 
 ## Run (**Docker — recommended**)
 
@@ -44,7 +44,7 @@ npm run dev
 
 ## Requirements
 
-- FastAPI must expose **`NEXT_PUBLIC_QUERYMESH_URL`** with `PORTAL_JWT_SECRET`, `CORS_ALLOW_ORIGINS` including `http://localhost:3000` (or `*` locally).
+- FastAPI must expose **`NEXT_PUBLIC_QUERYMESH_URL`** with **`PORTAL_JWT_SECRET`**, Google OAuth env vars (**`GOOGLE_*`**, **`PORTAL_FRONTEND_BASE_URL`** on the API), and **`CORS_ALLOW_ORIGINS`** including `http://localhost:3000` (or `*` locally).
 
 ## Docker / production parity
 
